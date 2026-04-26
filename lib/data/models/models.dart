@@ -21,6 +21,7 @@ class Professional {
   final List<String> skills;
   final int experienceYears;
   final double hourlyRate;
+  final String currency;
   final double? projectRate;
   final bool isVerified;
   final bool isAvailable;
@@ -51,6 +52,7 @@ class Professional {
     required this.skills,
     required this.experienceYears,
     required this.hourlyRate,
+    this.currency = 'USD',
     this.projectRate,
     this.isVerified = false,
     this.isAvailable = true,
@@ -75,12 +77,35 @@ class Professional {
   /// Display rate string
   String get rateDisplay {
     if (isTrade) {
-      return '\$${hourlyRate.toStringAsFixed(0)}/hr';
+      return '${_symbolForCurrency(currency)}${hourlyRate.toStringAsFixed(0)}/hr';
     }
     if (projectRate != null) {
-      return 'From \$${projectRate!.toStringAsFixed(0)}';
+      return 'From ${_symbolForCurrency(currency)}${projectRate!.toStringAsFixed(0)}';
     }
-    return '\$${hourlyRate.toStringAsFixed(0)}/hr';
+    return '${_symbolForCurrency(currency)}${hourlyRate.toStringAsFixed(0)}/hr';
+  }
+}
+
+String _symbolForCurrency(String code) {
+  switch (code) {
+    case 'USD':
+      return '\$';
+    case 'EUR':
+      return '€';
+    case 'GBP':
+      return '£';
+    case 'NGN':
+      return '₦';
+    case 'KES':
+      return 'KSh';
+    case 'ZAR':
+      return 'R';
+    case 'INR':
+      return '₹';
+    case 'JPY':
+      return '¥';
+    default:
+      return code;
   }
 }
 

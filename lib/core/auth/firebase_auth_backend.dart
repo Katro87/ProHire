@@ -1,21 +1,16 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_auth_platform_interface/firebase_auth_platform_interface.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
 enum AuthErrorCase {
   none,
   invalidEmail,
-  invalidPhoneNumber,
   weakPassword,
   passwordsDoNotMatch,
   userNotFound,
   wrongPassword,
   emailAlreadyInUse,
-  smsCodeInvalid,
-  smsCodeExpired,
-  smsQuotaExceeded,
   tooManyRequests,
   emptyEmail,
   emptyPassword,
@@ -64,25 +59,20 @@ class FirebaseAuthBackend {
   final GoogleSignIn _googleSignIn;
   final FirebaseFirestore _firestore;
 
-  ConfirmationResult? _webConfirmationResult;
-
-  static final RegExp _emailRegex = RegExp(
-    r'^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$',
-  );
+  static final RegExp _emailRegex = RegExp(r'.+@.+');
 
   Future<AuthResult> signUp({
-    required String displayName,
     required String email,
     required String password,
     required String confirmPassword,
+    required String displayName,
   }) async {
-    if (displayName.trim().isEmpty) {
-      return const AuthResult.failure(
-        errorCase: AuthErrorCase.unknown,
-        message: 'Name is required.',
-      );
-    }
     switch (true) {
+      case _ when displayName.trim().isEmpty:
+        return const AuthResult.failure(
+          errorCase: AuthErrorCase.unknown,
+          message: 'Full name is required.',
+        );
       case _ when email.trim().isEmpty:
         return const AuthResult.failure(
           errorCase: AuthErrorCase.emptyEmail,
@@ -91,7 +81,7 @@ class FirebaseAuthBackend {
       case _ when !_emailRegex.hasMatch(email.trim()):
         return const AuthResult.failure(
           errorCase: AuthErrorCase.invalidEmail,
-          message: 'Please enter a valid email address.',
+          message: 'Invalid email format.',
         );
       case _ when password.isEmpty:
         return const AuthResult.failure(
@@ -106,16 +96,18 @@ class FirebaseAuthBackend {
       case _ when password.length < 6:
         return const AuthResult.failure(
           errorCase: AuthErrorCase.weakPassword,
-          message: 'Password must be at least 6 characters long.',
+          message: 'Password too short.',
         );
       case _ when password != confirmPassword:
         return const AuthResult.failure(
           errorCase: AuthErrorCase.passwordsDoNotMatch,
-          message: 'Password and Confirm Password do not match.',
+          message: 'Passwords do not match.',
         );
       default:
         break;
     }
+
+    final resolvedName = _resolveDisplayName(email, displayName);
 
     try {
       final credential = await _auth.createUserWithEmailAndPassword(
@@ -124,22 +116,30 @@ class FirebaseAuthBackend {
       );
 
       if (credential.user != null) {
-        await credential.user!.updateDisplayName(displayName.trim());
+        await credential.user!.updateDisplayName(resolvedName);
       }
 
-      await _ensureUserProfile(
+      final profileSaved = await _ensureUserProfile(
         user: credential.user,
         role: 'client',
-        displayName: displayName.trim(),
+        displayName: resolvedName,
       );
 
-      return const AuthResult.success(message: 'Account created successfully.');
-    } on FirebaseAuthException catch (e) {
+      return AuthResult.success(
+        message: profileSaved
+            ? 'Account created successfully.'
+            : 'Account created. Profile sync pending.',
+      );
+    } on FirebaseAuthException catch (e, stack) {
+      debugPrint('AUTH ERROR: ${e.code} - ${e.message}');
+      debugPrintStack(stackTrace: stack);
       return _mapFirebaseAuthException(e, isLogin: false);
-    } catch (_) {
-      return const AuthResult.failure(
+    } catch (e, stack) {
+      debugPrint('UNKNOWN ERROR: $e');
+      debugPrintStack(stackTrace: stack);
+      return AuthResult.failure(
         errorCase: AuthErrorCase.unknown,
-        message: 'Unexpected error occurred. Please try again.',
+        message: e.toString(),
       );
     }
   }
@@ -171,15 +171,23 @@ class FirebaseAuthBackend {
         password: password,
       );
 
-      await _ensureUserProfile(user: credential.user, role: 'client');
+      final profileSaved = await _ensureUserProfile(user: credential.user, role: 'client');
 
-      return const AuthResult.success(message: 'Login successful.');
-    } on FirebaseAuthException catch (e) {
+      return AuthResult.success(
+        message: profileSaved
+            ? 'Login successful.'
+            : 'Login successful. Profile sync pending.',
+      );
+    } on FirebaseAuthException catch (e, stack) {
+      debugPrint('AUTH ERROR: ${e.code} - ${e.message}');
+      debugPrintStack(stackTrace: stack);
       return _mapFirebaseAuthException(e, isLogin: true);
-    } catch (_) {
-      return const AuthResult.failure(
+    } catch (e, stack) {
+      debugPrint('UNKNOWN ERROR: $e');
+      debugPrintStack(stackTrace: stack);
+      return AuthResult.failure(
         errorCase: AuthErrorCase.unknown,
-        message: 'Unexpected error occurred. Please try again.',
+        message: e.toString(),
       );
     }
   }
@@ -201,12 +209,16 @@ class FirebaseAuthBackend {
     try {
       await _auth.sendPasswordResetEmail(email: email.trim());
       return const AuthResult.success(message: 'Password reset email sent.');
-    } on FirebaseAuthException catch (e) {
+    } on FirebaseAuthException catch (e, stack) {
+      debugPrint('AUTH ERROR: ${e.code} - ${e.message}');
+      debugPrintStack(stackTrace: stack);
       return _mapFirebaseAuthException(e, isLogin: true);
-    } catch (_) {
-      return const AuthResult.failure(
+    } catch (e, stack) {
+      debugPrint('UNKNOWN ERROR: $e');
+      debugPrintStack(stackTrace: stack);
+      return AuthResult.failure(
         errorCase: AuthErrorCase.unknown,
-        message: 'Unable to send reset email. Please try again.',
+        message: e.toString(),
       );
     }
   }
@@ -237,116 +249,16 @@ class FirebaseAuthBackend {
       final userCredential = await _auth.signInWithCredential(credential);
       await _ensureUserProfile(user: userCredential.user, role: 'client');
       return const AuthResult.success(message: 'Google sign-in successful.');
-    } on FirebaseAuthException catch (e) {
+    } on FirebaseAuthException catch (e, stack) {
+      debugPrint('AUTH ERROR: ${e.code} - ${e.message}');
+      debugPrintStack(stackTrace: stack);
       return _mapFirebaseAuthException(e, isLogin: true);
-    } catch (_) {
-      return const AuthResult.failure(
+    } catch (e, stack) {
+      debugPrint('UNKNOWN ERROR: $e');
+      debugPrintStack(stackTrace: stack);
+      return AuthResult.failure(
         errorCase: AuthErrorCase.unknown,
-        message: 'Google sign-in failed. Please try again.',
-      );
-    }
-  }
-
-  Future<AuthResult> sendPhoneOtp({
-    required String phoneNumber,
-    required void Function(String verificationId, int? resendToken) onCodeSent,
-    required void Function(AuthResult failure) onFailed,
-    void Function()? onAutoVerified,
-    Duration timeout = const Duration(seconds: 60),
-  }) async {
-    if (phoneNumber.trim().isEmpty) {
-      return const AuthResult.failure(
-        errorCase: AuthErrorCase.invalidPhoneNumber,
-        message: 'Phone number is required.',
-      );
-    }
-
-    try {
-      final isAllowed = await _isPhoneLoginAllowed(phoneNumber.trim());
-      if (!isAllowed) {
-        return const AuthResult.failure(
-          errorCase: AuthErrorCase.userNotFound,
-          message: 'No account found for this phone number.',
-        );
-      }
-
-      if (kIsWeb) {
-        final verifier = RecaptchaVerifier(
-          auth: FirebaseAuthPlatform.instance,
-          size: RecaptchaVerifierSize.normal,
-          theme: RecaptchaVerifierTheme.light,
-        );
-        _webConfirmationResult =
-            await _auth.signInWithPhoneNumber(phoneNumber.trim(), verifier);
-        onCodeSent(_webConfirmationResult!.verificationId, null);
-        return const AuthResult.success(message: 'Verification code sent.');
-      }
-
-      await _auth.verifyPhoneNumber(
-        phoneNumber: phoneNumber.trim(),
-        timeout: timeout,
-        verificationCompleted: (credential) async {
-          final userCredential = await _auth.signInWithCredential(credential);
-          await _ensureUserProfile(user: userCredential.user, role: 'client');
-          onAutoVerified?.call();
-        },
-        verificationFailed: (exception) {
-          onFailed(_mapFirebaseAuthException(exception, isLogin: true));
-        },
-        codeSent: (verificationId, resendToken) {
-          onCodeSent(verificationId, resendToken);
-        },
-        codeAutoRetrievalTimeout: (_) {},
-      );
-
-      return const AuthResult.success(message: 'Verification code sent.');
-    } on FirebaseAuthException catch (e) {
-      return _mapFirebaseAuthException(e, isLogin: true);
-    } catch (_) {
-      return const AuthResult.failure(
-        errorCase: AuthErrorCase.unknown,
-        message: 'Unable to send code. Please try again.',
-      );
-    }
-  }
-
-  Future<AuthResult> verifyPhoneOtp({
-    required String verificationId,
-    required String smsCode,
-  }) async {
-    if (smsCode.trim().length < 4) {
-      return const AuthResult.failure(
-        errorCase: AuthErrorCase.smsCodeInvalid,
-        message: 'Enter the code you received via SMS.',
-      );
-    }
-
-    try {
-      UserCredential credential;
-      if (kIsWeb) {
-        if (_webConfirmationResult == null) {
-          return const AuthResult.failure(
-            errorCase: AuthErrorCase.unknown,
-            message: 'Start phone verification first.',
-          );
-        }
-        credential = await _webConfirmationResult!.confirm(smsCode.trim());
-      } else {
-        final phoneCredential = PhoneAuthProvider.credential(
-          verificationId: verificationId,
-          smsCode: smsCode.trim(),
-        );
-        credential = await _auth.signInWithCredential(phoneCredential);
-      }
-
-      await _ensureUserProfile(user: credential.user, role: 'client');
-      return const AuthResult.success(message: 'Phone verification successful.');
-    } on FirebaseAuthException catch (e) {
-      return _mapFirebaseAuthException(e, isLogin: true);
-    } catch (_) {
-      return const AuthResult.failure(
-        errorCase: AuthErrorCase.unknown,
-        message: 'Unable to verify the code. Please try again.',
+        message: e.toString(),
       );
     }
   }
@@ -383,36 +295,10 @@ class FirebaseAuthBackend {
           errorCase: AuthErrorCase.unknown,
           message: 'Popup blocked. Allow popups and try again.',
         );
-      case 'invalid-phone-number':
-        return const AuthResult.failure(
-          errorCase: AuthErrorCase.invalidPhoneNumber,
-          message: 'Invalid phone number. Include country code.',
-        );
-      case 'invalid-verification-code':
-        return const AuthResult.failure(
-          errorCase: AuthErrorCase.smsCodeInvalid,
-          message: 'Invalid verification code. Try again.',
-        );
-      case 'session-expired':
-        return const AuthResult.failure(
-          errorCase: AuthErrorCase.smsCodeExpired,
-          message: 'Code expired. Request a new one.',
-        );
-      case 'quota-exceeded':
-        return const AuthResult.failure(
-          errorCase: AuthErrorCase.smsQuotaExceeded,
-          message: 'SMS limit reached, try again later.',
-        );
       case 'too-many-requests':
         return const AuthResult.failure(
           errorCase: AuthErrorCase.tooManyRequests,
           message: 'Too many attempts. Please wait and try again.',
-        );
-      case 'app-not-authorized':
-      case 'missing-client-identifier':
-        return const AuthResult.failure(
-          errorCase: AuthErrorCase.unknown,
-          message: 'Phone auth is not authorized for this app yet.',
         );
       case 'email-already-in-use':
         return const AuthResult.failure(
@@ -452,9 +338,7 @@ class FirebaseAuthBackend {
       default:
         final fallback = exception.message?.trim().isNotEmpty == true
             ? exception.message!.trim()
-            : (isLogin
-                ? 'Unable to login right now. Please try again.'
-                : 'Unable to sign up right now. Please try again.');
+            : exception.code;
         return AuthResult.failure(
           errorCase: AuthErrorCase.unknown,
           message: fallback,
@@ -462,40 +346,44 @@ class FirebaseAuthBackend {
     }
   }
 
-  Future<void> _ensureUserProfile({
+  Future<bool> _ensureUserProfile({
     required User? user,
     required String role,
     String? displayName,
   }) async {
-    if (user == null) return;
+    if (user == null) return false;
 
-    final doc = _firestore.collection('users').doc(user.uid);
-    final snapshot = await doc.get();
+    try {
+      final doc = _firestore.collection('users').doc(user.uid);
+      final snapshot = await doc.get();
 
-    if (!snapshot.exists) {
-      await doc.set({
-        'role': role,
-        'email': user.email,
-        'phone': user.phoneNumber,
-        'displayName': displayName ?? user.displayName,
-        'createdAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
-    } else {
-      await doc.set({
-        if ((displayName ?? '').isNotEmpty) 'displayName': displayName,
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+      if (!snapshot.exists) {
+        await doc.set({
+          'role': role,
+          'email': user.email,
+          'displayName': displayName ?? user.displayName,
+          'createdAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      } else {
+        await doc.set({
+          if ((displayName ?? '').isNotEmpty) 'displayName': displayName,
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      }
+      return true;
+    } catch (e, stack) {
+      debugPrint('AUTH ERROR: firestore profile sync failed: $e');
+      debugPrintStack(stackTrace: stack);
+      return false;
     }
   }
 
-  Future<bool> _isPhoneLoginAllowed(String phoneNumber) async {
-    final snapshot = await _firestore
-        .collection('users')
-        .where('phone', isEqualTo: phoneNumber)
-        .limit(1)
-        .get();
-    return snapshot.docs.isNotEmpty;
+  String _resolveDisplayName(String email, String? displayName) {
+    final trimmed = (displayName ?? '').trim();
+    if (trimmed.isNotEmpty) return trimmed;
+    final local = email.trim().split('@').first.trim();
+    return local.isEmpty ? 'User' : local;
   }
 
   Future<void> updateUserRole(String role) async {

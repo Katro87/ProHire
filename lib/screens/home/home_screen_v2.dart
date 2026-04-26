@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../core/theme/app_colors_v2.dart';
 import '../../core/theme/pro_theme_v2.dart';
 import '../../core/utils/screen_utils.dart';
+import '../../core/services/user_profile_service.dart';
 import '../../data/models/models.dart';
-import '../../data/mock/sample_data.dart';
+import '../../data/models/user_profile.dart';
 import '../../widgets/premium_widgets.dart';
 
 class HomeScreenV2 extends StatefulWidget {
@@ -18,6 +20,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
   late TabController _tabController;
   final TextEditingController _searchController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  final _profileService = UserProfileService();
 
   String _selectedCategory = 'all';
   bool _isLoading = true;
@@ -50,22 +53,65 @@ class _HomeScreenV2State extends State<HomeScreenV2>
 
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
-    await Future.delayed(const Duration(milliseconds: 800));
-    _loadProfessionals();
+    await _loadProfessionals();
     setState(() => _isLoading = false);
   }
 
-  void _loadProfessionals() {
+  Future<void> _loadProfessionals() async {
+    final profiles = await _profileService.fetchProfessionals();
     final type = _tabController.index == 0
         ? ProfessionalType.trade
         : ProfessionalType.freelancer;
-    
-    _professionals = MockData.getByType(type);
-    
+
+    _professionals = profiles
+        .map(_mapProfileToProfessional)
+        .where((pro) => pro.type == type)
+        .toList();
+
     if (_selectedCategory != 'all') {
       _professionals = _professionals
           .where((p) => p.category == _selectedCategory)
           .toList();
+    }
+  }
+
+  Professional _mapProfileToProfessional(UserProfile profile) {
+    final data = profile.professionalData ?? {};
+    final skills = (data['skills'] as List?)?.map((e) => e.toString()).toList() ?? [];
+    final experienceLevel = (data['experienceLevel'] as String?) ?? 'Beginner';
+    final typeString = (data['type'] as String?) ?? 'freelancer';
+    final proType = typeString == 'trade'
+        ? ProfessionalType.trade
+        : ProfessionalType.freelancer;
+
+    return Professional(
+      id: profile.uid,
+      name: profile.name,
+      profession: data['title'] as String? ?? 'Professional',
+      category: data['category'] as String? ?? 'General',
+      type: proType,
+      avatarUrl: profile.profileImageUrl ?? '',
+      rating: (data['rating'] as num?)?.toDouble() ?? 0,
+      reviewCount: (data['reviewCount'] as num?)?.toInt() ?? 0,
+      tagline: profile.bio,
+      about: profile.bio,
+      skills: skills,
+      experienceYears: _experienceFromLevel(experienceLevel),
+      hourlyRate: (data['hourlyRate'] as num?)?.toDouble() ?? 0,
+      currency: profile.currency,
+      location: profile.companyName ?? 'Remote',
+      memberSince: DateTime.now(),
+    );
+  }
+
+  int _experienceFromLevel(String level) {
+    switch (level) {
+      case 'Expert':
+        return 7;
+      case 'Intermediate':
+        return 3;
+      default:
+        return 1;
     }
   }
 

@@ -6,6 +6,8 @@ import '../../core/theme/pro_theme_v2.dart';
 import '../../core/utils/screen_utils.dart';
 import '../showcase/showcase_screens.dart';
 import '../home/home_screen_v2.dart';
+import '../activity/activity_screen.dart';
+import '../profile/user_profile_screen.dart';
 
 class MainNavigation extends StatefulWidget {
   const MainNavigation({super.key});
@@ -22,13 +24,13 @@ class _MainNavigationState extends State<MainNavigation> {
       case 0:
         return const HomeScreenV2();
       case 1:
-        return const _ActivityScreen();
+        return const ActivityScreen();
       case 2:
         return const SizedBox(); // Placeholder for FAB
       case 3:
         return const _MessagesScreen();
       case 4:
-        return const _ProfileScreen();
+        return const UserProfileScreen();
       default:
         return const HomeScreenV2();
     }

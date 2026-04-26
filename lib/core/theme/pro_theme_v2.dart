@@ -93,6 +93,18 @@ class ProTheme {
             fontWeight: FontWeight.w600,
             letterSpacing: -0.2,
           ),
+        ).copyWith(
+          overlayColor: WidgetStateProperty.resolveWith<Color?>(
+            (states) {
+              if (states.contains(WidgetState.hovered)) {
+                return Colors.white.withValues(alpha: 0.08);
+              }
+              if (states.contains(WidgetState.pressed)) {
+                return Colors.white.withValues(alpha: 0.12);
+              }
+              return null;
+            },
+          ),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
@@ -108,6 +120,18 @@ class ProTheme {
             fontSize: 16,
             fontWeight: FontWeight.w600,
             letterSpacing: -0.2,
+          ),
+        ).copyWith(
+          overlayColor: WidgetStateProperty.resolveWith<Color?>(
+            (states) {
+              if (states.contains(WidgetState.hovered)) {
+                return AppColors.primary.withValues(alpha: 0.04);
+              }
+              if (states.contains(WidgetState.pressed)) {
+                return AppColors.primary.withValues(alpha: 0.08);
+              }
+              return null;
+            },
           ),
         ),
       ),

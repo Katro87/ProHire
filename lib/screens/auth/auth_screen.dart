@@ -1,9 +1,9 @@
-import 'dart:async';
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 import '../../core/auth/firebase_auth_backend.dart';
+import '../../core/services/user_profile_service.dart';
 import '../../core/theme/app_colors_v2.dart';
 import '../../core/theme/pro_theme_v2.dart';
 import '../../core/utils/screen_utils.dart';
@@ -15,44 +15,29 @@ class AuthScreen extends StatefulWidget {
   State<AuthScreen> createState() => _AuthScreenState();
 }
 
-enum _LoginMode { email, phone }
-
 class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateMixin {
   final _backend = FirebaseAuthBackend();
+  final _profileService = UserProfileService();
 
   late final TabController _tabController;
 
   final _loginFormKey = GlobalKey<FormState>();
   final _signupFormKey = GlobalKey<FormState>();
-  final _phoneFormKey = GlobalKey<FormState>();
-
   final _loginEmailController = TextEditingController();
   final _loginPasswordController = TextEditingController();
 
-  final _phoneController = TextEditingController();
-  final _otpController = TextEditingController();
-
-  final _signupEmailController = TextEditingController();
   final _signupNameController = TextEditingController();
+  final _signupEmailController = TextEditingController();
   final _signupPasswordController = TextEditingController();
   final _signupConfirmPasswordController = TextEditingController();
 
   bool _isLoginLoading = false;
   bool _isSignUpLoading = false;
   bool _isGoogleLoading = false;
-  bool _isPhoneLoading = false;
 
   bool _loginPasswordObscured = true;
   bool _signupPasswordObscured = true;
   bool _signupConfirmPasswordObscured = true;
-
-  bool _isOtpSent = false;
-  String? _verificationId;
-  int _cooldownSeconds = 0;
-  Timer? _cooldownTimer;
-
-  String _selectedRole = 'client';
-  _LoginMode _loginMode = _LoginMode.email;
 
   @override
   void initState() {
@@ -67,13 +52,10 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
     _tabController.dispose();
     _loginEmailController.dispose();
     _loginPasswordController.dispose();
-    _phoneController.dispose();
-    _otpController.dispose();
-    _signupEmailController.dispose();
     _signupNameController.dispose();
+    _signupEmailController.dispose();
     _signupPasswordController.dispose();
     _signupConfirmPasswordController.dispose();
-    _cooldownTimer?.cancel();
     super.dispose();
   }
 
@@ -239,88 +221,83 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
   ) {
     return LayoutBuilder(
       builder: (context, constraints) {
+        final screenWidth = MediaQuery.of(context).size.width;
         return SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: EdgeInsets.fromLTRB(
-            screen.horizontalPadding,
-            screen.spacing(24),
-            screen.horizontalPadding,
-            screen.safeBottom + screen.spacing(24),
-          ),
+          padding: const EdgeInsets.symmetric(horizontal: 16),
           child: ConstrainedBox(
             constraints: BoxConstraints(
               minHeight: constraints.maxHeight - screen.safeBottom - screen.spacing(48),
+              maxWidth: screenWidth,
             ),
-            child: IntrinsicHeight(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Welcome back',
-                    style: TextStyle(
-                      fontSize: screen.fontSize(24),
-                      fontWeight: FontWeight.w700,
-                      color: isDark
-                          ? AppColors.textPrimaryDark
-                          : AppColors.textPrimaryLight,
-                    ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(height: screen.spacing(24)),
+                Text(
+                  'Welcome back',
+                  style: TextStyle(
+                    fontSize: screen.fontSize(24),
+                    fontWeight: FontWeight.w700,
+                    color: isDark
+                        ? AppColors.textPrimaryDark
+                        : AppColors.textPrimaryLight,
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Log in or create an account to continue.',
-                    style: TextStyle(
-                      fontSize: screen.fontSize(14),
-                      color: isDark
-                          ? AppColors.textSecondaryDark
-                          : AppColors.textSecondaryLight,
-                    ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Log in or create an account to continue.',
+                  style: TextStyle(
+                    fontSize: screen.fontSize(14),
+                    color: isDark
+                        ? AppColors.textSecondaryDark
+                        : AppColors.textSecondaryLight,
                   ),
-                  const SizedBox(height: 24),
-                  Container(
-                    decoration: BoxDecoration(
-                      color: isDark ? AppColors.cardDark : AppColors.surfaceLight,
-                      borderRadius: BorderRadius.circular(ProTheme.radiusLg),
-                      border: Border.all(
-                        color: isDark ? AppColors.borderDark : AppColors.borderLight,
+                ),
+                const SizedBox(height: 24),
+                Container(
+                  decoration: BoxDecoration(
+                    color: isDark ? AppColors.cardDark : AppColors.surfaceLight,
+                    borderRadius: BorderRadius.circular(ProTheme.radiusLg),
+                    border: Border.all(
+                      color: isDark ? AppColors.borderDark : AppColors.borderLight,
+                    ),
+                    boxShadow: isDark ? null : AppColors.softShadow,
+                  ),
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        decoration: BoxDecoration(
+                          color: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
+                          borderRadius: BorderRadius.circular(ProTheme.radiusLg),
+                          border: Border.all(
+                            color: isDark ? AppColors.borderDark : AppColors.borderLight,
+                          ),
+                        ),
+                        child: TabBar(
+                          controller: _tabController,
+                          tabs: const [
+                            Tab(text: 'Login'),
+                            Tab(text: 'Signup'),
+                          ],
+                        ),
                       ),
-                      boxShadow: isDark ? null : AppColors.softShadow,
-                    ),
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          decoration: BoxDecoration(
-                            color: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
-                            borderRadius: BorderRadius.circular(ProTheme.radiusLg),
-                            border: Border.all(
-                              color: isDark ? AppColors.borderDark : AppColors.borderLight,
-                            ),
-                          ),
-                          child: TabBar(
-                            controller: _tabController,
-                            tabs: const [
-                              Tab(text: 'Login'),
-                              Tab(text: 'Sign-up'),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 18),
-                        Flexible(
-                          child: AnimatedSwitcher(
-                            duration: ProTheme.normalDuration,
-                            switchInCurve: ProTheme.defaultCurve,
-                            switchOutCurve: ProTheme.defaultCurve,
-                            child: _tabController.index == 0
-                                ? _buildLoginCard(context, screen, isDark)
-                                : _buildSignUpCard(context, screen, isDark),
-                          ),
-                        ),
-                      ],
-                    ),
+                      const SizedBox(height: 18),
+                      AnimatedSwitcher(
+                        duration: ProTheme.normalDuration,
+                        switchInCurve: ProTheme.defaultCurve,
+                        switchOutCurve: ProTheme.defaultCurve,
+                        child: _tabController.index == 0
+                            ? _buildLoginCard(context, screen, isDark)
+                            : _buildSignUpCard(context, screen, isDark),
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         );
@@ -501,7 +478,8 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                 prefixIcon: const Icon(Icons.lock_reset_rounded),
                 suffixIcon: IconButton(
                   onPressed: () => setState(
-                    () => _signupConfirmPasswordObscured = !_signupConfirmPasswordObscured,
+                    () => _signupConfirmPasswordObscured =
+                        !_signupConfirmPasswordObscured,
                   ),
                   icon: Icon(
                     _signupConfirmPasswordObscured
@@ -510,38 +488,6 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                   ),
                 ),
               ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'I am joining as',
-              style: TextStyle(
-                color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Expanded(
-                  child: _RoleButton(
-                    label: 'Client',
-                    icon: Icons.account_circle_outlined,
-                    selected: _selectedRole == 'client',
-                    onTap: () => setState(() => _selectedRole = 'client'),
-                    isDark: isDark,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _RoleButton(
-                    label: 'Professional',
-                    icon: Icons.work_outline_rounded,
-                    selected: _selectedRole == 'professional',
-                    onTap: () => setState(() => _selectedRole = 'professional'),
-                    isDark: isDark,
-                  ),
-                ),
-              ],
             ),
             const SizedBox(height: 18),
             SizedBox(
@@ -563,275 +509,32 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
     );
   }
 
-  Widget _buildPhoneSection(BuildContext context, ScreenInfo screen, bool isDark) {
-    return Form(
-      key: _phoneFormKey,
-      autovalidateMode: AutovalidateMode.onUserInteraction,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          TextFormField(
-            controller: _phoneController,
-            keyboardType: TextInputType.phone,
-            validator: _validatePhone,
-            decoration: const InputDecoration(
-              labelText: 'Phone Number',
-              hintText: '+1 555 000 1234',
-              prefixIcon: Icon(Icons.phone_iphone_rounded),
-            ),
-          ),
-          const SizedBox(height: 12),
-          SizedBox(
-            height: 52,
-            child: ElevatedButton(
-              onPressed: (_isPhoneLoading || _cooldownSeconds > 0)
-                  ? null
-                  : _onSendOtpPressed,
-              child: _isPhoneLoading
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : Text(_isOtpSent ? 'Resend Code' : 'Send Code'),
-            ),
-          ),
-          if (_cooldownSeconds > 0) ...[
-            const SizedBox(height: 8),
-            Text(
-              'Resend available in ${_cooldownSeconds}s',
-              style: TextStyle(
-                color: isDark
-                    ? AppColors.textSecondaryDark
-                    : AppColors.textSecondaryLight,
-                fontSize: 13,
-              ),
-            ),
-          ],
-          if (_isOtpSent) ...[
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _otpController,
-              keyboardType: TextInputType.number,
-              validator: _validateOtp,
-              decoration: const InputDecoration(
-                labelText: 'Verification Code',
-                hintText: 'Enter 6-digit code',
-                prefixIcon: Icon(Icons.lock_open_rounded),
-              ),
-            ),
-            const SizedBox(height: 12),
-            SizedBox(
-              height: 52,
-              child: ElevatedButton(
-                onPressed: _isPhoneLoading ? null : _onVerifyOtpPressed,
-                child: _isPhoneLoading
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Text('Verify & Continue'),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLoginModeToggle(bool isDark) {
-    return Container(
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
-        borderRadius: BorderRadius.circular(ProTheme.radiusLg),
-        border: Border.all(
-          color: isDark ? AppColors.borderDark : AppColors.borderLight,
-        ),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: _ModeButton(
-              label: 'Email',
-              icon: Icons.mail_outline_rounded,
-              isSelected: _loginMode == _LoginMode.email,
-              isDark: isDark,
-              onTap: () => setState(() {
-                _loginMode = _LoginMode.email;
-              }),
-            ),
-          ),
-          Expanded(
-            child: _ModeButton(
-              label: 'Phone',
-              icon: Icons.phone_iphone_rounded,
-              isSelected: _loginMode == _LoginMode.phone,
-              isDark: isDark,
-              onTap: () => setState(() {
-                _loginMode = _LoginMode.phone;
-              }),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   String? _validateEmail(String? value) {
     final text = value?.trim() ?? '';
     if (text.isEmpty) return 'Email is required.';
-    final regex = RegExp(r"^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,253}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,253}[a-zA-Z0-9])?)*$");
-    if (!regex.hasMatch(text)) return 'Enter a valid email address.';
+    if (!text.contains('@')) return 'Invalid email.';
     return null;
   }
 
   String? _validateName(String? value) {
     final text = value?.trim() ?? '';
-    if (text.isEmpty) return 'Name is required.';
-    if (text.length < 2) return 'Name must be at least 2 characters.';
+    if (text.isEmpty) return 'Full name is required.';
+    if (text.length < 2) return 'Enter your full name.';
     return null;
   }
 
   String? _validatePassword(String? value) {
     final text = value ?? '';
     if (text.isEmpty) return 'Password is required.';
-    if (text.length < 8) return 'Password must be at least 8 characters.';
-    if (!text.contains(RegExp(r'[A-Z]'))) return 'Add at least one uppercase letter.';
-    if (!text.contains(RegExp(r'[0-9]'))) return 'Add at least one number.';
+    if (text.length < 6) return 'Password too short.';
     return null;
   }
 
   String? _validateConfirmPassword(String? value) {
-    if ((value ?? '').isEmpty) return 'Confirm your password.';
-    if (value != _signupPasswordController.text) return 'Passwords do not match.';
+    final text = value ?? '';
+    if (text.isEmpty) return 'Confirm password is required.';
+    if (text != _signupPasswordController.text) return 'Passwords do not match.';
     return null;
-  }
-
-  String? _validatePhone(String? value) {
-    final text = value?.trim() ?? '';
-    if (text.isEmpty) return 'Phone number is required.';
-    final regex = RegExp(r'^\+?[0-9]{8,15}$');
-    if (!regex.hasMatch(text.replaceAll(' ', ''))) {
-      return 'Use international format (e.g. +15550001234).';
-    }
-    return null;
-  }
-
-  String? _validateOtp(String? value) {
-    final text = value?.trim() ?? '';
-    if (text.length < 4) return 'Enter the code from SMS.';
-    return null;
-  }
-
-  void _startCooldown(int seconds) {
-    _cooldownTimer?.cancel();
-    setState(() => _cooldownSeconds = seconds);
-
-    _cooldownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (!mounted) return;
-      if (_cooldownSeconds <= 1) {
-        timer.cancel();
-        setState(() => _cooldownSeconds = 0);
-      } else {
-        setState(() => _cooldownSeconds -= 1);
-      }
-    });
-  }
-
-  Widget _RoleButton({
-    required String label,
-    required IconData icon,
-    required bool selected,
-    required VoidCallback onTap,
-    required bool isDark,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(ProTheme.radiusMd),
-      child: AnimatedContainer(
-        duration: ProTheme.fastDuration,
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          color: selected
-              ? (isDark ? AppColors.surfaceDark : AppColors.primarySurface)
-              : (isDark ? AppColors.cardDark : AppColors.surfaceLight),
-          borderRadius: BorderRadius.circular(ProTheme.radiusMd),
-          border: Border.all(
-            color: selected
-                ? AppColors.primary
-                : (isDark ? AppColors.borderDark : AppColors.borderLight),
-          ),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              icon,
-              size: 18,
-              color: selected
-                  ? AppColors.primary
-                  : (isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight),
-            ),
-            const SizedBox(width: 8),
-            Text(
-              label,
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                color: selected
-                    ? AppColors.primary
-                    : (isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _ModeButton({
-    required String label,
-    required IconData icon,
-    required bool isSelected,
-    required bool isDark,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(ProTheme.radiusLg),
-      child: AnimatedContainer(
-        duration: ProTheme.fastDuration,
-        padding: const EdgeInsets.symmetric(vertical: 10),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? (isDark ? AppColors.cardDark : AppColors.primarySurface)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(ProTheme.radiusLg),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              icon,
-              size: 18,
-              color: isSelected
-                  ? AppColors.primary
-                  : (isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight),
-            ),
-            const SizedBox(width: 8),
-            Text(
-              label,
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                color: isSelected
-                    ? AppColors.primary
-                    : (isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 
   Future<void> _onLoginPressed() async {
@@ -851,7 +554,20 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
     _showNotification(result);
 
     if (result.isSuccess) {
-      Navigator.pushReplacementNamed(context, '/home');
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        Navigator.pushReplacementNamed(context, '/auth');
+        return;
+      }
+
+      final isComplete = await _profileService.isProfileComplete(user.uid);
+      if (!mounted) return;
+
+      if (isComplete) {
+        Navigator.pushReplacementNamed(context, '/home');
+      } else {
+        Navigator.pushReplacementNamed(context, '/complete-profile');
+      }
     }
   }
 
@@ -862,10 +578,10 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
     setState(() => _isSignUpLoading = true);
 
     final result = await _backend.signUp(
-      displayName: _signupNameController.text.trim(),
       email: _signupEmailController.text,
       password: _signupPasswordController.text,
       confirmPassword: _signupConfirmPasswordController.text,
+      displayName: _signupNameController.text.trim(),
     );
 
     if (!mounted) return;
@@ -874,74 +590,21 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
     _showNotification(result);
 
     if (result.isSuccess) {
-      await _backend.updateUserRole(_selectedRole);
-      _tabController.animateTo(0);
       _signupNameController.clear();
-      _loginEmailController.text = _signupEmailController.text.trim();
-      _loginPasswordController.clear();
+      _signupPasswordController.clear();
+      _signupConfirmPasswordController.clear();
+      Navigator.pushReplacementNamed(context, '/complete-profile');
     }
   }
 
   Future<void> _onResetPasswordPressed() async {
-    final result = await _backend.sendPasswordReset(
-      email: _loginEmailController.text,
-    );
+    final email = await _showResetPasswordDialog();
+    if (email == null) return;
+
+    final result = await _backend.sendPasswordReset(email: email);
 
     if (!mounted) return;
     _showNotification(result);
-  }
-
-  Future<void> _onSendOtpPressed() async {
-    if (!(_phoneFormKey.currentState?.validate() ?? false)) {
-      return;
-    }
-
-    setState(() => _isPhoneLoading = true);
-
-    final result = await _backend.sendPhoneOtp(
-      phoneNumber: _phoneController.text.replaceAll(' ', ''),
-      onCodeSent: (verificationId, resendToken) {
-        if (!mounted) return;
-        setState(() {
-          _verificationId = verificationId;
-          _isOtpSent = true;
-        });
-        _startCooldown(60);
-      },
-      onFailed: (failure) {
-        if (!mounted) return;
-        _showNotification(failure);
-      },
-      onAutoVerified: () {
-        if (!mounted) return;
-        Navigator.pushReplacementNamed(context, '/home');
-      },
-    );
-
-    if (!mounted) return;
-    setState(() => _isPhoneLoading = false);
-    _showNotification(result);
-  }
-
-  Future<void> _onVerifyOtpPressed() async {
-    if (!(_phoneFormKey.currentState?.validate() ?? false)) {
-      return;
-    }
-
-    setState(() => _isPhoneLoading = true);
-
-    final result = await _backend.verifyPhoneOtp(
-      verificationId: _verificationId ?? '',
-      smsCode: _otpController.text,
-    );
-
-    if (!mounted) return;
-    setState(() => _isPhoneLoading = false);
-    _showNotification(result);
-
-    if (result.isSuccess) {
-      Navigator.pushReplacementNamed(context, '/home');
-    }
   }
 
   Future<void> _onGooglePressed() async {
@@ -956,6 +619,51 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
     if (result.isSuccess) {
       Navigator.pushReplacementNamed(context, '/home');
     }
+  }
+
+  Future<String?> _showResetPasswordDialog() async {
+    final controller = TextEditingController(text: _loginEmailController.text.trim());
+    final formKey = GlobalKey<FormState>();
+
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Reset Password'),
+          content: Form(
+            key: formKey,
+            autovalidateMode: AutovalidateMode.onUserInteraction,
+            child: TextFormField(
+              controller: controller,
+              keyboardType: TextInputType.emailAddress,
+              validator: _validateEmail,
+              decoration: const InputDecoration(
+                labelText: 'Email',
+                prefixIcon: Icon(Icons.mail_outline_rounded),
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                if (!(formKey.currentState?.validate() ?? false)) {
+                  return;
+                }
+                Navigator.of(context).pop(controller.text.trim());
+              },
+              child: const Text('Send Link'),
+            ),
+          ],
+        );
+      },
+    );
+
+    controller.dispose();
+    return result;
   }
 
   void _showNotification(AuthResult result) {
@@ -975,26 +683,23 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
       case AuthErrorCase.none:
         return AppColors.success;
       case AuthErrorCase.invalidEmail:
-      case AuthErrorCase.invalidPhoneNumber:
-      case AuthErrorCase.wrongPassword:
       case AuthErrorCase.passwordsDoNotMatch:
+      case AuthErrorCase.wrongPassword:
       case AuthErrorCase.weakPassword:
       case AuthErrorCase.emptyEmail:
       case AuthErrorCase.emptyPassword:
       case AuthErrorCase.emptyConfirmPassword:
-      case AuthErrorCase.smsCodeInvalid:
-      case AuthErrorCase.smsCodeExpired:
       case AuthErrorCase.cancelled:
         return AppColors.warning;
       case AuthErrorCase.userNotFound:
       case AuthErrorCase.emailAlreadyInUse:
-      case AuthErrorCase.smsQuotaExceeded:
       case AuthErrorCase.tooManyRequests:
       case AuthErrorCase.network:
       case AuthErrorCase.unknown:
         return AppColors.error;
     }
   }
+
 }
 
 class _FormCard extends StatelessWidget {
