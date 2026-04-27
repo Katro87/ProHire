@@ -173,13 +173,14 @@ class FirebaseAuthBackend {
         password: password,
       );
 
-      final syncedName = await _ensureUserProfile(user: credential.user);
-
       if (credential.user != null) {
         print('LOGIN SUCCESS: uid = ${credential.user!.uid}');
       }
 
-      return AuthResult.success(message: 'Login successful', userName: syncedName);
+      return AuthResult.success(
+        message: 'Login successful',
+        userName: credential.user?.displayName,
+      );
     } on FirebaseAuthException catch (e, stack) {
       debugPrint('AUTH ERROR: ${e.code} - ${e.message}');
       debugPrintStack(stackTrace: stack);

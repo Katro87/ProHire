@@ -162,11 +162,10 @@ class _SplashScreenV2State extends State<SplashScreenV2>
                         ],
                       ),
                       child: Center(
-                        child: Text(
-                          '👷',
-                          style: TextStyle(
-                            fontSize: screen.isMobile ? 48 : 56,
-                          ),
+                        child: Icon(
+                          Icons.engineering_rounded,
+                          size: screen.isMobile ? 48 : 56,
+                          color: AppColors.primary,
                         ),
                       ),
                     ),

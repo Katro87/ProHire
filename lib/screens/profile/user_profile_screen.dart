@@ -60,10 +60,46 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           );
         }
 
+        if (snapshot.hasError) {
+          return Scaffold(
+            body: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('Unable to load profile right now.'),
+                    const SizedBox(height: 12),
+                    ElevatedButton(
+                      onPressed: _ensureProfile,
+                      child: const Text('Retry'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }
+
         final profile = snapshot.data;
         if (profile == null) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
+          return Scaffold(
+            body: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('Profile is not ready yet.'),
+                    const SizedBox(height: 12),
+                    ElevatedButton(
+                      onPressed: _ensureProfile,
+                      child: const Text('Create Profile'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           );
         }
 
@@ -189,6 +225,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     if (user == null) return;
 
     final nameController = TextEditingController(text: profile.name);
+    final emailController = TextEditingController(text: profile.email);
     final bioController = TextEditingController(text: profile.bio);
     final currentSkills = _extractSkills(profile);
     final skillsController = TextEditingController(text: currentSkills.join(', '));
@@ -209,6 +246,12 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                     TextField(
                       controller: nameController,
                       decoration: const InputDecoration(labelText: 'Name'),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: emailController,
+                      keyboardType: TextInputType.emailAddress,
+                      decoration: const InputDecoration(labelText: 'Email'),
                     ),
                     const SizedBox(height: 12),
                     DropdownButtonFormField<String>(
@@ -247,6 +290,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                     final navigator = Navigator.of(dialogContext);
                     final role = selectedRole;
                     final name = nameController.text.trim();
+                    final email = emailController.text.trim();
                     final bio = bioController.text.trim();
                     final skills = skillsController.text
                         .split(',')
@@ -257,7 +301,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                     await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
                       'uid': user.uid,
                       'name': name.isEmpty ? 'User' : name,
-                      'email': user.email ?? profile.email,
+                      'email': email.isEmpty ? (user.email ?? profile.email) : email,
                       'role': role,
                       'bio': bio,
                       'skills': skills,
@@ -284,6 +328,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     );
 
     nameController.dispose();
+    emailController.dispose();
     bioController.dispose();
     skillsController.dispose();
   }

@@ -17,21 +17,21 @@ class _OnboardingScreenV2State extends State<OnboardingScreenV2> {
 
   final List<OnboardingPage> _pages = [
     OnboardingPage(
-      emoji: '🔧',
+      icon: Icons.plumbing_rounded,
       title: 'Find Skilled Trades',
       description:
           'Connect with verified plumbers, electricians, carpenters and more for your home projects',
       gradient: AppColors.tradeGradient,
     ),
     OnboardingPage(
-      emoji: '💼',
+      icon: Icons.work_outline_rounded,
       title: 'Hire Freelancers',
       description:
           'Access top designers, developers, writers and other creative professionals',
       gradient: AppColors.freelanceGradient,
     ),
     OnboardingPage(
-      emoji: '⭐',
+      icon: Icons.verified_rounded,
       title: 'Quality Guaranteed',
       description:
           'All professionals are verified with reviews and ratings from real clients',
@@ -178,13 +178,13 @@ class _OnboardingScreenV2State extends State<OnboardingScreenV2> {
 }
 
 class OnboardingPage {
-  final String emoji;
+  final IconData icon;
   final String title;
   final String description;
   final LinearGradient gradient;
 
   OnboardingPage({
-    required this.emoji,
+    required this.icon,
     required this.title,
     required this.description,
     required this.gradient,
@@ -209,7 +209,7 @@ class _OnboardingPageWidget extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          // Large emoji with gradient background
+          // Large icon with gradient background
           Container(
             width: screen.isMobile ? 160 : 200,
             height: screen.isMobile ? 160 : 200,
@@ -225,11 +225,10 @@ class _OnboardingPageWidget extends StatelessWidget {
               ],
             ),
             child: Center(
-              child: Text(
-                page.emoji,
-                style: TextStyle(
-                  fontSize: screen.isMobile ? 80 : 100,
-                ),
+              child: Icon(
+                page.icon,
+                color: Colors.white,
+                size: screen.isMobile ? 80 : 100,
               ),
             ),
           ),

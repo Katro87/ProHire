@@ -627,10 +627,21 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
     final email = await _showResetPasswordDialog();
     if (email == null) return;
 
-    final result = await _backend.sendPasswordReset(email: email);
+    try {
+      final trimmed = email.trim();
+      if (trimmed.isNotEmpty) {
+        await FirebaseAuth.instance.sendPasswordResetEmail(email: trimmed);
+      }
+    } catch (e, stack) {
+      debugPrint('AUTH: Password reset request failed (generic response shown): $e');
+      debugPrintStack(stackTrace: stack);
+    }
 
     if (!mounted) return;
-    _showNotification(result);
+    _showStyledSnackBar(
+      'If this email exists, a reset link has been sent',
+      isSuccess: true,
+    );
   }
 
   Future<void> _onGooglePressed() async {
@@ -772,24 +783,18 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
 
   Future<String?> _showResetPasswordDialog() async {
     final controller = TextEditingController(text: _loginEmailController.text.trim());
-    final formKey = GlobalKey<FormState>();
 
     final result = await showDialog<String>(
       context: context,
       builder: (context) {
         return AlertDialog(
           title: const Text('Reset Password'),
-          content: Form(
-            key: formKey,
-            autovalidateMode: AutovalidateMode.onUserInteraction,
-            child: TextFormField(
-              controller: controller,
-              keyboardType: TextInputType.emailAddress,
-              validator: _validateEmail,
-              decoration: const InputDecoration(
-                labelText: 'Email',
-                prefixIcon: Icon(Icons.mail_outline_rounded),
-              ),
+          content: TextField(
+            controller: controller,
+            keyboardType: TextInputType.emailAddress,
+            decoration: const InputDecoration(
+              labelText: 'Email',
+              prefixIcon: Icon(Icons.mail_outline_rounded),
             ),
           ),
           actions: [
@@ -799,9 +804,6 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
             ),
             ElevatedButton(
               onPressed: () {
-                if (!(formKey.currentState?.validate() ?? false)) {
-                  return;
-                }
                 Navigator.of(context).pop(controller.text.trim());
               },
               child: const Text('Send Link'),
