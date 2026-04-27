@@ -23,17 +23,24 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   }
 
   Future<void> _ensureProfile() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      await _service.ensureProfile(
-        user.uid,
-        email: user.email,
-        name: user.displayName,
-      );
-    }
-
     if (!mounted) return;
-    setState(() => _isEnsuringProfile = false);
+    setState(() => _isEnsuringProfile = true);
+
+    final user = FirebaseAuth.instance.currentUser;
+    try {
+      if (user != null) {
+        await _service.ensureProfile(
+          user.uid,
+          email: user.email,
+          name: user.displayName,
+        );
+      }
+    } catch (e) {
+      debugPrint('PROFILE: ensureProfile failed: $e');
+    } finally {
+      if (!mounted) return;
+      setState(() => _isEnsuringProfile = false);
+    }
   }
 
   @override
@@ -83,6 +90,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
 
         final profile = snapshot.data;
         if (profile == null) {
+          _ensureProfile();
           return Scaffold(
             body: Center(
               child: Padding(
@@ -298,25 +306,37 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                         .where((e) => e.isNotEmpty)
                         .toList();
 
-                    await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
-                      'uid': user.uid,
-                      'name': name.isEmpty ? 'User' : name,
-                      'email': email.isEmpty ? (user.email ?? profile.email) : email,
-                      'role': role,
-                      'bio': bio,
-                      'skills': skills,
-                      'professionalData': {
-                        ...(profile.professionalData ?? {}),
-                        'skills': skills,
-                      },
-                      'profileComplete':
-                          (role ?? '').isNotEmpty && bio.isNotEmpty && skills.isNotEmpty,
-                      'updatedAt': FieldValue.serverTimestamp(),
-                    }, SetOptions(merge: true));
+                    try {
+                      final currentUser = FirebaseAuth.instance.currentUser;
+                      if (currentUser == null) {
+                        throw StateError('User session not available');
+                      }
 
-                    if (!mounted) return;
-                    navigator.pop();
-                    _showSnackBar('Profile updated successfully', isSuccess: true);
+                      await FirebaseFirestore.instance.collection('users').doc(currentUser.uid).set({
+                        'uid': currentUser.uid,
+                        'name': name.isEmpty ? 'User' : name,
+                        'email': email.isEmpty ? (currentUser.email ?? profile.email) : email,
+                        'role': role,
+                        'bio': bio,
+                        'skills': skills,
+                        'professionalData': {
+                          ...(profile.professionalData ?? {}),
+                          'skills': skills,
+                        },
+                        'profileComplete':
+                            (role ?? '').isNotEmpty && bio.isNotEmpty && skills.isNotEmpty,
+                        'updatedAt': FieldValue.serverTimestamp(),
+                      }, SetOptions(merge: true));
+
+                      if (!mounted) return;
+                      navigator.pop();
+                      _showSnackBar('Profile updated successfully', isSuccess: true);
+                    } catch (e, stack) {
+                      debugPrint('PROFILE: update failed: $e');
+                      debugPrintStack(stackTrace: stack);
+                      if (!mounted) return;
+                      _showSnackBar('Unable to update profile', isSuccess: false);
+                    }
                   },
                   child: const Text('Save'),
                 ),

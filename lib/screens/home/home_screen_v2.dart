@@ -49,6 +49,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
   }
 
   Future<void> _loadData() async {
+    if (!mounted) return;
     setState(() => _isLoading = true);
     try {
       await _loadCurrentUser();

@@ -553,6 +553,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
       return;
     }
     debugPrint('AUTH: Login button pressed for ${_loginEmailController.text.trim()}');
+    if (!mounted) return;
     setState(() => _isLoginLoading = true);
 
     try {
@@ -588,6 +589,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
       return;
     }
     debugPrint('AUTH: Signup button pressed for ${_signupEmailController.text.trim()}');
+    if (!mounted) return;
     setState(() => _isSignUpLoading = true);
 
     try {
@@ -646,6 +648,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
 
   Future<void> _onGooglePressed() async {
     debugPrint('AUTH: Google sign-in button pressed');
+    if (!mounted) return;
     setState(() => _isGoogleLoading = true);
 
     try {
