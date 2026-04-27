@@ -1,4 +1,6 @@
 import 'dart:ui';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../../core/theme/app_colors_v2.dart';
 import '../../core/theme/pro_theme_v2.dart';
@@ -20,12 +22,15 @@ class _ProfileScreenV2State extends State<ProfileScreenV2>
   late TabController _tabController;
   final ScrollController _scrollController = ScrollController();
   double _scrollOffset = 0;
+  bool _isFavorite = false;
+  bool _favoriteLoading = false;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
     _scrollController.addListener(_onScroll);
+    _loadFavoriteState();
   }
 
   @override
@@ -40,6 +45,75 @@ class _ProfileScreenV2State extends State<ProfileScreenV2>
     setState(() {
       _scrollOffset = _scrollController.offset;
     });
+  }
+
+  Future<void> _loadFavoriteState() async {
+    final pro = widget.professional;
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (pro == null || currentUser == null) return;
+
+    final doc = await FirebaseFirestore.instance
+        .collection('favorites')
+        .doc('${currentUser.uid}_${pro.id}')
+        .get();
+
+    if (!mounted) return;
+    setState(() => _isFavorite = doc.exists);
+  }
+
+  Future<void> _toggleFavorite() async {
+    final pro = widget.professional;
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (pro == null || currentUser == null || _favoriteLoading) return;
+
+    setState(() => _favoriteLoading = true);
+    final docRef = FirebaseFirestore.instance
+        .collection('favorites')
+        .doc('${currentUser.uid}_${pro.id}');
+
+    try {
+      if (_isFavorite) {
+        await docRef.delete();
+      } else {
+        await docRef.set({
+          'userId': currentUser.uid,
+          'targetId': pro.id,
+          'timestamp': FieldValue.serverTimestamp(),
+        });
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _isFavorite = !_isFavorite;
+        _favoriteLoading = false;
+      });
+
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(_isFavorite ? 'Added to favorites' : 'Removed from favorites'),
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: AppColors.success,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          ),
+        );
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _favoriteLoading = false);
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(
+          SnackBar(
+            content: const Text('Unable to update favorite right now'),
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: AppColors.error,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          ),
+        );
+    }
   }
 
   ScreenInfo _getScreenInfo(BuildContext context) {
@@ -197,8 +271,8 @@ class _ProfileScreenV2State extends State<ProfileScreenV2>
                 ),
                 const SizedBox(width: 8),
                 _buildCircleButton(
-                  icon: Icons.bookmark_outline,
-                  onTap: () {},
+                  icon: _isFavorite ? Icons.bookmark_rounded : Icons.bookmark_outline,
+                  onTap: _toggleFavorite,
                   isDark: isDark,
                   elevated: !showTitle,
                 ),

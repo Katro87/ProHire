@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../core/theme/app_colors_v2.dart';
 import '../../core/theme/pro_theme_v2.dart';
 import '../../core/utils/screen_utils.dart';
+import '../../core/services/request_service.dart';
 import '../../data/models/models.dart';
 import '../../widgets/premium_widgets.dart';
 
@@ -19,6 +21,7 @@ class _HireScreenV2State extends State<HireScreenV2> {
   String? _selectedTime;
   final _messageController = TextEditingController();
   final _addressController = TextEditingController();
+  final _requestService = RequestService();
   bool _isLoading = false;
 
   final List<String> _timeSlots = [
@@ -551,13 +554,46 @@ class _HireScreenV2State extends State<HireScreenV2> {
 
     setState(() => _isLoading = true);
 
-    // Simulate API call
-    await Future.delayed(const Duration(seconds: 2));
+    try {
+      final currentUser = FirebaseAuth.instance.currentUser;
+      if (currentUser == null) {
+        _showError('Please log in to send requests');
+        setState(() => _isLoading = false);
+        return;
+      }
 
-    setState(() => _isLoading = false);
+      // Create request data
+      final scheduledDate = _selectedDate ?? DateTime.now();
+      final address = _addressController.text.trim();
+      final message = _messageController.text.trim();
+      final hourlyRate = pro.hourlyRate;
 
-    if (mounted) {
-      _showSuccessDialog();
+      // Save request to Firestore
+      await _requestService.createRequest(
+        senderId: currentUser.uid,
+        receiverId: pro.id,
+        description: message,
+        requirements: pro.isTrade ? 'On-site service required' : 'Remote project',
+        duration: _selectedTime ?? 'Flexible',
+        hourlyPay: hourlyRate,
+        senderSnapshot: {
+          'name': currentUser.displayName ?? 'User',
+          'email': currentUser.email ?? '',
+        },
+        receiverSnapshot: {
+          'name': pro.name,
+          'profession': pro.profession,
+        },
+      );
+
+      setState(() => _isLoading = false);
+
+      if (mounted) {
+        _showSuccessDialog();
+      }
+    } catch (e) {
+      setState(() => _isLoading = false);
+      _showError('Failed to send request: ${e.toString()}');
     }
   }
 

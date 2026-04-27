@@ -24,18 +24,21 @@ class AuthResult {
   final bool isSuccess;
   final AuthErrorCase errorCase;
   final String message;
+  final String? userName;
 
   const AuthResult({
     required this.isSuccess,
     required this.errorCase,
     required this.message,
+    this.userName,
   });
 
-  const AuthResult.success({required String message})
+  const AuthResult.success({required String message, String? userName})
       : this(
           isSuccess: true,
           errorCase: AuthErrorCase.none,
           message: message,
+          userName: userName,
         );
 
   const AuthResult.failure({required AuthErrorCase errorCase, required String message})
@@ -96,12 +99,12 @@ class FirebaseAuthBackend {
       case _ when password.length < 6:
         return const AuthResult.failure(
           errorCase: AuthErrorCase.weakPassword,
-          message: 'Password too short.',
+          message: 'Password must be at least 6 characters',
         );
       case _ when password != confirmPassword:
         return const AuthResult.failure(
           errorCase: AuthErrorCase.passwordsDoNotMatch,
-          message: 'Passwords do not match.',
+          message: 'Passwords do not match',
         );
       default:
         break;
@@ -119,17 +122,16 @@ class FirebaseAuthBackend {
         await credential.user!.updateDisplayName(resolvedName);
       }
 
-      final profileSaved = await _ensureUserProfile(
+      final syncedName = await _ensureUserProfile(
         user: credential.user,
-        role: 'client',
-        displayName: resolvedName,
+        fallbackName: resolvedName,
       );
 
-      return AuthResult.success(
-        message: profileSaved
-            ? 'Account created successfully.'
-            : 'Account created. Profile sync pending.',
-      );
+      if (credential.user != null) {
+        print('LOGIN SUCCESS: uid = ${credential.user!.uid}');
+      }
+
+      return AuthResult.success(message: 'Account created successfully', userName: syncedName);
     } on FirebaseAuthException catch (e, stack) {
       debugPrint('AUTH ERROR: ${e.code} - ${e.message}');
       debugPrintStack(stackTrace: stack);
@@ -171,13 +173,13 @@ class FirebaseAuthBackend {
         password: password,
       );
 
-      final profileSaved = await _ensureUserProfile(user: credential.user, role: 'client');
+      final syncedName = await _ensureUserProfile(user: credential.user);
 
-      return AuthResult.success(
-        message: profileSaved
-            ? 'Login successful.'
-            : 'Login successful. Profile sync pending.',
-      );
+      if (credential.user != null) {
+        print('LOGIN SUCCESS: uid = ${credential.user!.uid}');
+      }
+
+      return AuthResult.success(message: 'Login successful', userName: syncedName);
     } on FirebaseAuthException catch (e, stack) {
       debugPrint('AUTH ERROR: ${e.code} - ${e.message}');
       debugPrintStack(stackTrace: stack);
@@ -202,13 +204,13 @@ class FirebaseAuthBackend {
     if (!_emailRegex.hasMatch(email.trim())) {
       return const AuthResult.failure(
         errorCase: AuthErrorCase.invalidEmail,
-        message: 'Please enter a valid email address.',
+        message: 'Invalid email format',
       );
     }
 
     try {
       await _auth.sendPasswordResetEmail(email: email.trim());
-      return const AuthResult.success(message: 'Password reset email sent.');
+      return const AuthResult.success(message: 'Password reset email sent');
     } on FirebaseAuthException catch (e, stack) {
       debugPrint('AUTH ERROR: ${e.code} - ${e.message}');
       debugPrintStack(stackTrace: stack);
@@ -228,8 +230,11 @@ class FirebaseAuthBackend {
       if (kIsWeb) {
         final provider = GoogleAuthProvider();
         final credential = await _auth.signInWithPopup(provider);
-        await _ensureUserProfile(user: credential.user, role: 'client');
-        return const AuthResult.success(message: 'Google sign-in successful.');
+        final syncedName = await _ensureUserProfile(user: credential.user);
+        if (credential.user != null) {
+          print('LOGIN SUCCESS: uid = ${credential.user!.uid}');
+        }
+        return AuthResult.success(message: 'Google sign-in successful', userName: syncedName);
       }
 
       final user = await _googleSignIn.signIn();
@@ -247,8 +252,13 @@ class FirebaseAuthBackend {
       );
 
       final userCredential = await _auth.signInWithCredential(credential);
-      await _ensureUserProfile(user: userCredential.user, role: 'client');
-      return const AuthResult.success(message: 'Google sign-in successful.');
+      final syncedName = await _ensureUserProfile(user: userCredential.user);
+
+      if (userCredential.user != null) {
+        print('LOGIN SUCCESS: uid = ${userCredential.user!.uid}');
+      }
+
+      return AuthResult.success(message: 'Google sign-in successful', userName: syncedName);
     } on FirebaseAuthException catch (e, stack) {
       debugPrint('AUTH ERROR: ${e.code} - ${e.message}');
       debugPrintStack(stackTrace: stack);
@@ -308,27 +318,27 @@ class FirebaseAuthBackend {
       case 'invalid-email':
         return const AuthResult.failure(
           errorCase: AuthErrorCase.invalidEmail,
-          message: 'Invalid email format.',
+          message: 'Invalid email format',
         );
       case 'user-not-found':
         return const AuthResult.failure(
           errorCase: AuthErrorCase.userNotFound,
-          message: 'No account found for this email.',
+          message: 'No account found with this email',
         );
       case 'wrong-password':
         return const AuthResult.failure(
           errorCase: AuthErrorCase.wrongPassword,
-          message: 'Wrong password entered.',
+          message: 'Incorrect password',
         );
       case 'weak-password':
         return const AuthResult.failure(
           errorCase: AuthErrorCase.weakPassword,
-          message: 'Password is too weak. Use at least 6 characters.',
+          message: 'Password must be at least 6 characters',
         );
       case 'network-request-failed':
         return const AuthResult.failure(
           errorCase: AuthErrorCase.network,
-          message: 'Network error. Please try again.',
+          message: 'Check your internet connection',
         );
       case 'popup-closed-by-user':
         return const AuthResult.failure(
@@ -346,36 +356,61 @@ class FirebaseAuthBackend {
     }
   }
 
-  Future<bool> _ensureUserProfile({
+  Future<String> _ensureUserProfile({
     required User? user,
-    required String role,
-    String? displayName,
+    String? fallbackName,
   }) async {
-    if (user == null) return false;
+    if (user == null) return 'User';
 
     try {
       final doc = _firestore.collection('users').doc(user.uid);
       final snapshot = await doc.get();
+      print('FIRESTORE USER FETCHED');
+
+      final resolvedName = _resolveDisplayName(user.email ?? '', fallbackName ?? user.displayName);
 
       if (!snapshot.exists) {
         await doc.set({
-          'role': role,
+          'uid': user.uid,
+          'name': resolvedName,
           'email': user.email,
-          'displayName': displayName ?? user.displayName,
+          'role': null,
+          'bio': '',
+          'skills': <String>[],
+          'profileComplete': false,
           'createdAt': FieldValue.serverTimestamp(),
           'updatedAt': FieldValue.serverTimestamp(),
         });
+        print('USER CREATED IN FIRESTORE');
       } else {
-        await doc.set({
-          if ((displayName ?? '').isNotEmpty) 'displayName': displayName,
-          'updatedAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
+        final data = snapshot.data() ?? <String, dynamic>{};
+        final existingName = (data['name'] as String?)?.trim() ?? '';
+        final existingEmail = (data['email'] as String?)?.trim() ?? '';
+
+        if (existingName.isEmpty ||
+            existingEmail.isEmpty ||
+            data['uid'] == null ||
+            !data.containsKey('role') ||
+            !data.containsKey('bio') ||
+            !data.containsKey('skills')) {
+          await doc.set({
+            'uid': user.uid,
+            'name': existingName.isEmpty ? resolvedName : existingName,
+            'email': existingEmail.isEmpty ? user.email : existingEmail,
+            if (!data.containsKey('role')) 'role': null,
+            if (!data.containsKey('bio')) 'bio': '',
+            if (!data.containsKey('skills')) 'skills': <String>[],
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+        }
+
+        return existingName.isEmpty ? resolvedName : existingName;
       }
-      return true;
+      return resolvedName;
     } catch (e, stack) {
       debugPrint('AUTH ERROR: firestore profile sync failed: $e');
       debugPrintStack(stackTrace: stack);
-      return false;
+      return _resolveDisplayName(user.email ?? '', fallbackName ?? user.displayName);
     }
   }
 

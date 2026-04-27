@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../core/theme/app_colors_v2.dart';
 import '../../core/utils/screen_utils.dart';
 
@@ -41,9 +42,16 @@ class _SplashScreenV2State extends State<SplashScreenV2>
     _controller.forward();
 
     Future.delayed(const Duration(seconds: 3), () {
-      if (mounted) {
-        Navigator.pushReplacementNamed(context, '/onboarding');
+      if (!mounted) return;
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        debugPrint('AUTH: Existing session found at splash, routing to home');
+        Navigator.pushReplacementNamed(context, '/home');
+        return;
       }
+
+      debugPrint('AUTH: No session at splash, routing to onboarding');
+      Navigator.pushReplacementNamed(context, '/onboarding');
     });
   }
 

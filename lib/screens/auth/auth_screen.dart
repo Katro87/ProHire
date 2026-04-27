@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import '../../core/auth/firebase_auth_backend.dart';
@@ -7,6 +8,7 @@ import '../../core/services/user_profile_service.dart';
 import '../../core/theme/app_colors_v2.dart';
 import '../../core/theme/pro_theme_v2.dart';
 import '../../core/utils/screen_utils.dart';
+import '../navigation/main_navigation_v2.dart';
 
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});
@@ -256,45 +258,50 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                   ),
                 ),
                 const SizedBox(height: 24),
-                Container(
-                  decoration: BoxDecoration(
-                    color: isDark ? AppColors.cardDark : AppColors.surfaceLight,
-                    borderRadius: BorderRadius.circular(ProTheme.radiusLg),
-                    border: Border.all(
-                      color: isDark ? AppColors.borderDark : AppColors.borderLight,
-                    ),
-                    boxShadow: isDark ? null : AppColors.softShadow,
-                  ),
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
+                Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 560),
+                    child: Container(
                         decoration: BoxDecoration(
-                          color: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
+                          color: isDark ? AppColors.cardDark : AppColors.surfaceLight,
                           borderRadius: BorderRadius.circular(ProTheme.radiusLg),
                           border: Border.all(
                             color: isDark ? AppColors.borderDark : AppColors.borderLight,
                           ),
+                          boxShadow: isDark ? null : AppColors.softShadow,
                         ),
-                        child: TabBar(
-                          controller: _tabController,
-                          tabs: const [
-                            Tab(text: 'Login'),
-                            Tab(text: 'Signup'),
+                        padding: const EdgeInsets.all(20),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              decoration: BoxDecoration(
+                                color: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
+                                borderRadius: BorderRadius.circular(ProTheme.radiusLg),
+                                border: Border.all(
+                                  color: isDark ? AppColors.borderDark : AppColors.borderLight,
+                                ),
+                              ),
+                              child: TabBar(
+                                controller: _tabController,
+                                tabs: const [
+                                  Tab(text: 'Login'),
+                                  Tab(text: 'Signup'),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 18),
+                            AnimatedSwitcher(
+                              duration: ProTheme.normalDuration,
+                              switchInCurve: ProTheme.defaultCurve,
+                              switchOutCurve: ProTheme.defaultCurve,
+                              child: _tabController.index == 0
+                                  ? _buildLoginCard(context, screen, isDark)
+                                  : _buildSignUpCard(context, screen, isDark),
+                            ),
                           ],
                         ),
-                      ),
-                      const SizedBox(height: 18),
-                      AnimatedSwitcher(
-                        duration: ProTheme.normalDuration,
-                        switchInCurve: ProTheme.defaultCurve,
-                        switchOutCurve: ProTheme.defaultCurve,
-                        child: _tabController.index == 0
-                            ? _buildLoginCard(context, screen, isDark)
-                            : _buildSignUpCard(context, screen, isDark),
-                      ),
-                    ],
+                    ),
                   ),
                 ),
               ],
@@ -342,6 +349,8 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
   }
 
   Widget _buildLoginCard(BuildContext context, ScreenInfo screen, bool isDark) {
+    final isBusy = _isLoginLoading || _isSignUpLoading || _isGoogleLoading;
+
     return _FormCard(
       isDark: isDark,
       child: Form(
@@ -382,15 +391,15 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
             Align(
               alignment: Alignment.centerRight,
               child: TextButton(
-                onPressed: _isLoginLoading ? null : _onResetPasswordPressed,
-                child: const Text('Forgot password?'),
+                onPressed: isBusy ? null : _onResetPasswordPressed,
+                child: const Text('Forgot Password?'),
               ),
             ),
             const SizedBox(height: 8),
             SizedBox(
               height: 52,
               child: ElevatedButton(
-                onPressed: _isLoginLoading ? null : _onLoginPressed,
+                onPressed: isBusy ? null : _onLoginPressed,
                 child: _isLoginLoading
                     ? const SizedBox(
                         width: 20,
@@ -404,7 +413,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
             SizedBox(
               height: 52,
               child: OutlinedButton.icon(
-                onPressed: _isGoogleLoading ? null : _onGooglePressed,
+                onPressed: isBusy ? null : _onGooglePressed,
                 icon: _isGoogleLoading
                     ? const SizedBox(
                         width: 18,
@@ -422,6 +431,8 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
   }
 
   Widget _buildSignUpCard(BuildContext context, ScreenInfo screen, bool isDark) {
+    final isBusy = _isLoginLoading || _isSignUpLoading || _isGoogleLoading;
+
     return _FormCard(
       isDark: isDark,
       child: Form(
@@ -493,7 +504,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
             SizedBox(
               height: 52,
               child: ElevatedButton(
-                onPressed: _isSignUpLoading ? null : _onSignUpPressed,
+                onPressed: isBusy ? null : _onSignUpPressed,
                 child: _isSignUpLoading
                     ? const SizedBox(
                         width: 20,
@@ -512,7 +523,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
   String? _validateEmail(String? value) {
     final text = value?.trim() ?? '';
     if (text.isEmpty) return 'Email is required.';
-    if (!text.contains('@')) return 'Invalid email.';
+    if (!text.contains('@')) return 'Invalid email format';
     return null;
   }
 
@@ -526,14 +537,14 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
   String? _validatePassword(String? value) {
     final text = value ?? '';
     if (text.isEmpty) return 'Password is required.';
-    if (text.length < 6) return 'Password too short.';
+    if (text.length < 6) return 'Password must be at least 6 characters';
     return null;
   }
 
   String? _validateConfirmPassword(String? value) {
     final text = value ?? '';
     if (text.isEmpty) return 'Confirm password is required.';
-    if (text != _signupPasswordController.text) return 'Passwords do not match.';
+    if (text != _signupPasswordController.text) return 'Passwords do not match';
     return null;
   }
 
@@ -541,32 +552,33 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
     if (!(_loginFormKey.currentState?.validate() ?? false)) {
       return;
     }
+    debugPrint('AUTH: Login button pressed for ${_loginEmailController.text.trim()}');
     setState(() => _isLoginLoading = true);
 
-    final result = await _backend.login(
-      email: _loginEmailController.text,
-      password: _loginPasswordController.text,
-    );
+    try {
+      final result = await _backend.login(
+        email: _loginEmailController.text,
+        password: _loginPasswordController.text,
+      );
 
-    if (!mounted) return;
-    setState(() => _isLoginLoading = false);
+      debugPrint('AUTH: Login API result => success=${result.isSuccess}, message=${result.message}');
 
-    _showNotification(result);
+      if (!mounted) return;
 
-    if (result.isSuccess) {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) {
-        Navigator.pushReplacementNamed(context, '/auth');
+      if (result.isSuccess) {
+        await _handlePostAuthSuccess(name: result.userName);
         return;
       }
 
-      final isComplete = await _profileService.isProfileComplete(user.uid);
+      _showNotification(result);
+    } catch (e, stack) {
+      debugPrint('AUTH: Login exception: $e');
+      debugPrintStack(stackTrace: stack);
       if (!mounted) return;
-
-      if (isComplete) {
-        Navigator.pushReplacementNamed(context, '/home');
-      } else {
-        Navigator.pushReplacementNamed(context, '/complete-profile');
+      _showStyledSnackBar('Unable to login right now. Please try again.', isSuccess: false);
+    } finally {
+      if (mounted) {
+        setState(() => _isLoginLoading = false);
       }
     }
   }
@@ -575,25 +587,39 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
     if (!(_signupFormKey.currentState?.validate() ?? false)) {
       return;
     }
+    debugPrint('AUTH: Signup button pressed for ${_signupEmailController.text.trim()}');
     setState(() => _isSignUpLoading = true);
 
-    final result = await _backend.signUp(
-      email: _signupEmailController.text,
-      password: _signupPasswordController.text,
-      confirmPassword: _signupConfirmPasswordController.text,
-      displayName: _signupNameController.text.trim(),
-    );
+    try {
+      final result = await _backend.signUp(
+        email: _signupEmailController.text,
+        password: _signupPasswordController.text,
+        confirmPassword: _signupConfirmPasswordController.text,
+        displayName: _signupNameController.text.trim(),
+      );
 
-    if (!mounted) return;
-    setState(() => _isSignUpLoading = false);
+      debugPrint('AUTH: Signup API result => success=${result.isSuccess}, message=${result.message}');
 
-    _showNotification(result);
+      if (!mounted) return;
 
-    if (result.isSuccess) {
-      _signupNameController.clear();
-      _signupPasswordController.clear();
-      _signupConfirmPasswordController.clear();
-      Navigator.pushReplacementNamed(context, '/complete-profile');
+      if (result.isSuccess) {
+        _signupNameController.clear();
+        _signupPasswordController.clear();
+        _signupConfirmPasswordController.clear();
+        await _handlePostAuthSuccess(name: result.userName);
+        return;
+      }
+
+      _showNotification(result);
+    } catch (e, stack) {
+      debugPrint('AUTH: Signup exception: $e');
+      debugPrintStack(stackTrace: stack);
+      if (!mounted) return;
+      _showStyledSnackBar('Unable to create account right now. Please try again.', isSuccess: false);
+    } finally {
+      if (mounted) {
+        setState(() => _isSignUpLoading = false);
+      }
     }
   }
 
@@ -608,17 +634,140 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
   }
 
   Future<void> _onGooglePressed() async {
+    debugPrint('AUTH: Google sign-in button pressed');
     setState(() => _isGoogleLoading = true);
 
-    final result = await _backend.signInWithGoogle();
+    try {
+      final result = await _backend.signInWithGoogle();
+      debugPrint('AUTH: Google API result => success=${result.isSuccess}, message=${result.message}');
 
-    if (!mounted) return;
-    setState(() => _isGoogleLoading = false);
-    _showNotification(result);
+      if (!mounted) return;
 
-    if (result.isSuccess) {
-      Navigator.pushReplacementNamed(context, '/home');
+      if (result.isSuccess) {
+        await _handlePostAuthSuccess(name: result.userName);
+        return;
+      }
+
+      _showNotification(result);
+    } catch (e, stack) {
+      debugPrint('AUTH: Google sign-in exception: $e');
+      debugPrintStack(stackTrace: stack);
+      if (!mounted) return;
+      _showStyledSnackBar('Unable to sign in with Google. Please try again.', isSuccess: false);
+    } finally {
+      if (mounted) {
+        setState(() => _isGoogleLoading = false);
+      }
     }
+  }
+
+  Future<void> _handlePostAuthSuccess({String? name}) async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null || !mounted) {
+      debugPrint('AUTH: currentUser is null after success result');
+      if (mounted) {
+        _showStyledSnackBar('Login succeeded but session not ready. Please try once more.', isSuccess: false);
+      }
+      return;
+    }
+
+    try {
+      final profile = await _profileService.ensureProfile(
+        currentUser.uid,
+        email: currentUser.email,
+        name: name ?? currentUser.displayName,
+      );
+
+      final rawDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(currentUser.uid)
+          .get();
+      final rawData = rawDoc.data() ?? <String, dynamic>{};
+
+      if (!mounted) return;
+      final isIncomplete = _isProfileIncomplete(profileMap: {
+        'role': rawData['role'],
+        'bio': rawData['bio'],
+        'skills': rawData['skills'],
+      });
+
+      final safeName = (name ?? profile.name).trim().isEmpty ? 'User' : (name ?? profile.name).trim();
+      _showStyledSnackBar('Welcome, $safeName!', isSuccess: true);
+
+      if (!isIncomplete) {
+        _navigateToHome();
+        return;
+      }
+
+      final completeNow = await _showCompleteProfileDialog();
+      if (!mounted) return;
+      if (completeNow) {
+        _navigateToProfile();
+      } else {
+        _navigateToHome();
+      }
+    } catch (e, stack) {
+      debugPrint('AUTH: Post-login handling error: $e');
+      debugPrintStack(stackTrace: stack);
+      if (!mounted) return;
+      _showStyledSnackBar('Signed in, but profile setup failed. Opening home.', isSuccess: false);
+      _navigateToHome();
+    }
+  }
+
+  bool _isProfileIncomplete({required Map<String, dynamic> profileMap}) {
+    final role = (profileMap['role'] as String?)?.trim() ?? '';
+    final bio = (profileMap['bio'] as String?)?.trim() ?? '';
+    final skills = (profileMap['skills'] as List?)
+            ?.map((e) => e.toString().trim())
+            .where((e) => e.isNotEmpty)
+            .toList() ??
+        <String>[];
+
+    return role.isEmpty || bio.isEmpty || skills.isEmpty;
+  }
+
+  Future<bool> _showCompleteProfileDialog() async {
+    final action = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text('Complete Your Profile'),
+          content: const Text(
+            'Complete your profile to attract more clients or professionals.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Later'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop(true);
+              },
+              child: const Text('Complete Now'),
+            ),
+          ],
+        );
+      },
+    );
+
+    return action ?? false;
+  }
+
+  void _navigateToHome() {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => const MainNavigation()),
+    );
+  }
+
+  void _navigateToProfile() {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => const MainNavigation(initialIndex: 4)),
+    );
   }
 
   Future<String?> _showResetPasswordDialog() async {
@@ -667,15 +816,31 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
   }
 
   void _showNotification(AuthResult result) {
-    final color = result.isSuccess ? AppColors.success : _colorForError(result.errorCase);
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(result.message),
-        behavior: SnackBarBehavior.floating,
-        backgroundColor: color,
-      ),
+    _showStyledSnackBar(
+      result.message,
+      isSuccess: result.isSuccess,
+      colorOverride: result.isSuccess ? null : _colorForError(result.errorCase),
     );
+  }
+
+  void _showStyledSnackBar(
+    String message, {
+    required bool isSuccess,
+    Color? colorOverride,
+  }) {
+    final color = colorOverride ?? (isSuccess ? AppColors.success : AppColors.error);
+
+    ScaffoldMessenger.of(context)
+      ..clearSnackBars()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(message),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: color,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        ),
+      );
   }
 
   Color _colorForError(AuthErrorCase errorCase) {
@@ -689,12 +854,11 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
       case AuthErrorCase.emptyEmail:
       case AuthErrorCase.emptyPassword:
       case AuthErrorCase.emptyConfirmPassword:
-      case AuthErrorCase.cancelled:
-        return AppColors.warning;
       case AuthErrorCase.userNotFound:
       case AuthErrorCase.emailAlreadyInUse:
       case AuthErrorCase.tooManyRequests:
       case AuthErrorCase.network:
+      case AuthErrorCase.cancelled:
       case AuthErrorCase.unknown:
         return AppColors.error;
     }

@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../core/theme/app_colors_v2.dart';
 import '../../core/theme/pro_theme_v2.dart';
 import '../../core/utils/screen_utils.dart';
 import '../../core/services/user_profile_service.dart';
+import '../activity/activity_screen.dart';
 import '../../data/models/models.dart';
 import '../../data/models/user_profile.dart';
 import '../../widgets/premium_widgets.dart';
@@ -23,6 +24,8 @@ class _HomeScreenV2State extends State<HomeScreenV2>
   final _profileService = UserProfileService();
 
   String _selectedCategory = 'all';
+  String _searchQuery = '';
+  String _userName = 'User';
   bool _isLoading = true;
   List<Professional> _professionals = [];
 
@@ -53,12 +56,30 @@ class _HomeScreenV2State extends State<HomeScreenV2>
 
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
+    await _profileService.seedDummyProfessionalsIfEmpty();
+    await _loadCurrentUser();
     await _loadProfessionals();
+    if (!mounted) return;
     setState(() => _isLoading = false);
   }
 
+  Future<void> _loadCurrentUser() async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) {
+      _userName = 'User';
+      return;
+    }
+
+    final profile = await _profileService.ensureProfile(
+      currentUser.uid,
+      email: currentUser.email,
+      name: currentUser.displayName,
+    );
+    _userName = profile.name.trim().isEmpty ? 'User' : profile.name.trim();
+  }
+
   Future<void> _loadProfessionals() async {
-    final profiles = await _profileService.fetchProfessionals();
+    final profiles = await _profileService.searchProfessionals(_searchQuery);
     final type = _tabController.index == 0
         ? ProfessionalType.trade
         : ProfessionalType.freelancer;
@@ -72,6 +93,10 @@ class _HomeScreenV2State extends State<HomeScreenV2>
       _professionals = _professionals
           .where((p) => p.category == _selectedCategory)
           .toList();
+    }
+
+    if (mounted) {
+      setState(() {});
     }
   }
 
@@ -113,12 +138,6 @@ class _HomeScreenV2State extends State<HomeScreenV2>
       default:
         return 1;
     }
-  }
-
-  List<Category> get _currentCategories {
-    return _tabController.index == 0
-        ? TradeCategories.all
-        : FreelancerCategories.all;
   }
 
   ScreenInfo _getScreenInfo(BuildContext context) {
@@ -187,10 +206,10 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                         hintText: _tabController.index == 0
                             ? 'Find plumbers, electricians...'
                             : 'Find developers, designers...',
-                        onFilterTap: () => _showFilterSheet(context),
+                        onFilterTap: null,
                         onChanged: (query) {
-                          // Search logic
-                          setState(() {});
+                          _searchQuery = query.trim();
+                          _loadProfessionals();
                         },
                       ),
                     ),
@@ -199,11 +218,6 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                   // Tab Bar
                   SliverToBoxAdapter(
                     child: _buildTabBar(context, screen),
-                  ),
-
-                  // Categories
-                  SliverToBoxAdapter(
-                    child: _buildCategories(context, screen),
                   ),
 
                   // Section Title
@@ -261,10 +275,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
               boxShadow: AppColors.primaryGlow(0.3),
             ),
             child: const Center(
-              child: Text(
-                '👋',
-                style: TextStyle(fontSize: 24),
-              ),
+              child: Icon(Icons.handshake_rounded, color: Colors.white, size: 26),
             ),
           ),
           SizedBox(width: screen.spacing(12)),
@@ -274,7 +285,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Hello, John!',
+                  'Hello, $_userName!',
                   style: TextStyle(
                     fontSize: screen.fontSize(20),
                     fontWeight: FontWeight.w700,
@@ -299,7 +310,12 @@ class _HomeScreenV2State extends State<HomeScreenV2>
           // Actions
           _buildIconButton(
             icon: Icons.notifications_outlined,
-            onTap: () {},
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ActivityScreen()),
+              );
+            },
             isDark: isDark,
             screen: screen,
             hasBadge: true,
@@ -444,112 +460,6 @@ class _HomeScreenV2State extends State<HomeScreenV2>
     );
   }
 
-  Widget _buildCategories(BuildContext context, ScreenInfo screen) {
-    final categories = _currentCategories;
-
-    return SizedBox(
-      height: 48,
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        padding: EdgeInsets.symmetric(horizontal: screen.horizontalPadding),
-        itemCount: categories.length + 1,
-        itemBuilder: (context, index) {
-          if (index == 0) {
-            return Padding(
-              padding: const EdgeInsets.only(right: 10),
-              child: _buildAllCategoryChip(context, screen),
-            );
-          }
-
-          final category = categories[index - 1];
-          return Padding(
-            padding: const EdgeInsets.only(right: 10),
-            child: CategoryChip(
-              category: category,
-              isSelected: _selectedCategory == category.id,
-              onTap: () {
-                setState(() {
-                  _selectedCategory = category.id;
-                  _loadProfessionals();
-                });
-              },
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildAllCategoryChip(BuildContext context, ScreenInfo screen) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final isSelected = _selectedCategory == 'all';
-    final isTrade = _tabController.index == 0;
-    final accentColor = isTrade ? AppColors.trade : AppColors.freelance;
-
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          _selectedCategory = 'all';
-          _loadProfessionals();
-        });
-      },
-      child: AnimatedContainer(
-        duration: ProTheme.normalDuration,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        decoration: BoxDecoration(
-          gradient: isSelected
-              ? (isTrade ? AppColors.tradeGradient : AppColors.freelanceGradient)
-              : null,
-          color: isSelected
-              ? null
-              : (isDark ? AppColors.cardDark : AppColors.surfaceLight),
-          borderRadius: BorderRadius.circular(ProTheme.radiusFull),
-          border: isSelected
-              ? null
-              : Border.all(
-                  color: isDark ? AppColors.borderDark : AppColors.borderLight,
-                ),
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: accentColor.withValues(alpha: 0.3),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ]
-              : null,
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.grid_view_rounded,
-              size: 16,
-              color: isSelected
-                  ? Colors.white
-                  : (isDark
-                      ? AppColors.textPrimaryDark
-                      : AppColors.textPrimaryLight),
-            ),
-            const SizedBox(width: 8),
-            Text(
-              'All',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: isSelected
-                    ? Colors.white
-                    : (isDark
-                        ? AppColors.textPrimaryDark
-                        : AppColors.textPrimaryLight),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildProfessionalsGrid(BuildContext context, ScreenInfo screen) {
     if (_isLoading) {
       return SliverAdaptiveGrid(
@@ -565,18 +475,25 @@ class _HomeScreenV2State extends State<HomeScreenV2>
     }
 
     if (_professionals.isEmpty) {
-      return SliverFillRemaining(
-        child: EmptyState(
-          icon: Icons.search_off_rounded,
-          title: 'No Professionals Found',
-          subtitle: 'Try selecting a different category',
-          actionText: 'View All',
-          onAction: () {
-            setState(() {
-              _selectedCategory = 'all';
+      return SliverToBoxAdapter(
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(
+            screen.horizontalPadding,
+            24,
+            screen.horizontalPadding,
+            screen.safeBottom + 120,
+          ),
+          child: EmptyState(
+            icon: Icons.search_off_rounded,
+            title: 'No results found',
+            subtitle: 'Try searching by name or skills',
+            actionText: 'Clear Search',
+            onAction: () {
+              _searchController.clear();
+              _searchQuery = '';
               _loadProfessionals();
-            });
-          },
+            },
+          ),
         ),
       );
     }
@@ -607,120 +524,4 @@ class _HomeScreenV2State extends State<HomeScreenV2>
     );
   }
 
-  void _showFilterSheet(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => _buildFilterSheet(context),
-    );
-  }
-
-  Widget _buildFilterSheet(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return Container(
-      height: MediaQuery.of(context).size.height * 0.6,
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
-        borderRadius: const BorderRadius.vertical(
-          top: Radius.circular(ProTheme.radiusXl),
-        ),
-      ),
-      child: Column(
-        children: [
-          const SizedBox(height: 12),
-          Container(
-            width: 40,
-            height: 4,
-            decoration: BoxDecoration(
-              color: isDark ? AppColors.borderDark : AppColors.borderLight,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          const SizedBox(height: 20),
-          Text(
-            'Filter',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
-          ),
-          const SizedBox(height: 24),
-          // Filter options go here
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Rating',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 12),
-                  Wrap(
-                    spacing: 10,
-                    children: [
-                      for (final rating in [4.5, 4.0, 3.5, 3.0])
-                        FilterChip(
-                          label: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(Icons.star, size: 14, color: AppColors.starFilled),
-                              const SizedBox(width: 4),
-                              Text('$rating+'),
-                            ],
-                          ),
-                          selected: false,
-                          onSelected: (_) {},
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
-                  Text(
-                    'Availability',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 12),
-                  Wrap(
-                    spacing: 10,
-                    children: [
-                      FilterChip(
-                        label: const Text('Available Now'),
-                        selected: false,
-                        onSelected: (_) {},
-                      ),
-                      FilterChip(
-                        label: const Text('Top Rated'),
-                        selected: false,
-                        onSelected: (_) {},
-                      ),
-                      FilterChip(
-                        label: const Text('Verified'),
-                        selected: false,
-                        onSelected: (_) {},
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-          Padding(
-            padding: EdgeInsets.fromLTRB(
-              24,
-              16,
-              24,
-              MediaQuery.of(context).padding.bottom + 16,
-            ),
-            child: PremiumButton(
-              text: 'Apply Filters',
-              onPressed: () => Navigator.pop(context),
-              width: double.infinity,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../core/theme/app_colors_v2.dart';
 import '../../core/utils/screen_utils.dart';
 import '../../widgets/premium_widgets.dart';
@@ -45,12 +46,14 @@ class _OnboardingScreenV2State extends State<OnboardingScreenV2> {
         curve: Curves.easeInOut,
       );
     } else {
-      Navigator.pushReplacementNamed(context, '/auth');
+      final user = FirebaseAuth.instance.currentUser;
+      Navigator.pushReplacementNamed(context, user != null ? '/home' : '/auth');
     }
   }
 
   void _skipToEnd() {
-    Navigator.pushReplacementNamed(context, '/auth');
+    final user = FirebaseAuth.instance.currentUser;
+    Navigator.pushReplacementNamed(context, user != null ? '/home' : '/auth');
   }
 
   @override

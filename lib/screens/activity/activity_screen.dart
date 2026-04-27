@@ -20,7 +20,7 @@ class _ActivityScreenState extends State<ActivityScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 2, vsync: this);
   }
 
   @override
@@ -51,30 +51,35 @@ class _ActivityScreenState extends State<ActivityScreen>
               : AppColors.textSecondaryLight,
           indicatorColor: AppColors.primary,
           tabs: const [
-            Tab(text: 'Pending'),
+            Tab(text: 'New Request'),
             Tab(text: 'Accepted'),
-            Tab(text: 'Rejected'),
           ],
         ),
       ),
       body: StreamBuilder<List<RequestItem>>(
-        stream: _requestService.watchRequests(user.uid),
+        stream: _requestService.watchRequestsForReceiver(user.uid),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
 
-          final requests = snapshot.data ?? [];
+          if (snapshot.hasError) {
+            return const Center(child: Text('Unable to load requests right now.'));
+          }
+
+          if (!snapshot.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          final requests = snapshot.data!;
           final pending = requests.where((r) => r.status == 'pending').toList();
           final accepted = requests.where((r) => r.status == 'accepted').toList();
-          final rejected = requests.where((r) => r.status == 'rejected').toList();
 
           return TabBarView(
             controller: _tabController,
             children: [
               _buildRequestList(pending, user.uid, isDark),
               _buildRequestList(accepted, user.uid, isDark),
-              _buildRequestList(rejected, user.uid, isDark),
             ],
           );
         },
@@ -137,6 +142,14 @@ class _ActivityScreenState extends State<ActivityScreen>
               ],
             ),
             const SizedBox(height: 12),
+            if (request.status == 'pending')
+              const Padding(
+                padding: EdgeInsets.only(bottom: 8),
+                child: Text(
+                  'New Request',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ),
             Text('Description: ${request.description}'),
             Text('Requirements: ${request.requirements}'),
             Text('Duration: ${request.duration}'),

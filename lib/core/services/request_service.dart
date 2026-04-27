@@ -42,6 +42,15 @@ class RequestService {
             snapshot.docs.map(RequestItem.fromDoc).toList());
   }
 
+  Stream<List<RequestItem>> watchRequestsForReceiver(String receiverId) {
+    return _firestore
+        .collection('requests')
+        .where('receiverId', isEqualTo: receiverId)
+        .orderBy('timestamp', descending: true)
+        .snapshots()
+        .map((snapshot) => snapshot.docs.map(RequestItem.fromDoc).toList());
+  }
+
   Future<void> updateStatus(String requestId, String status) async {
     await _firestore.collection('requests').doc(requestId).update({
       'status': status,
