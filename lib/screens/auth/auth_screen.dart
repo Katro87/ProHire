@@ -40,12 +40,20 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
   bool _loginPasswordObscured = true;
   bool _signupPasswordObscured = true;
   bool _signupConfirmPasswordObscured = true;
+  bool _showLoginValidation = false;
+  bool _showSignupValidation = false;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
     _tabController.addListener(_handleTabChange);
+    _loginEmailController.addListener(_handleAuthInputChanged);
+    _loginPasswordController.addListener(_handleAuthInputChanged);
+    _signupNameController.addListener(_handleAuthInputChanged);
+    _signupEmailController.addListener(_handleAuthInputChanged);
+    _signupPasswordController.addListener(_handleAuthInputChanged);
+    _signupConfirmPasswordController.addListener(_handleAuthInputChanged);
   }
 
   @override
@@ -59,6 +67,12 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
     _signupPasswordController.dispose();
     _signupConfirmPasswordController.dispose();
     super.dispose();
+  }
+
+  void _handleAuthInputChanged() {
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   void _handleTabChange() {
@@ -355,7 +369,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
       isDark: isDark,
       child: Form(
         key: _loginFormKey,
-        autovalidateMode: AutovalidateMode.onUserInteraction,
+        autovalidateMode: _showLoginValidation ? AutovalidateMode.onUserInteraction : AutovalidateMode.disabled,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -437,7 +451,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
       isDark: isDark,
       child: Form(
         key: _signupFormKey,
-        autovalidateMode: AutovalidateMode.onUserInteraction,
+        autovalidateMode: _showSignupValidation ? AutovalidateMode.onUserInteraction : AutovalidateMode.disabled,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -459,6 +473,24 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                 prefixIcon: Icon(Icons.mail_outline_rounded),
               ),
             ),
+            if (_emailSuggestions(_signupEmailController.text).isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: _emailSuggestions(_signupEmailController.text).map((suggestion) {
+                  return ActionChip(
+                    label: Text(suggestion),
+                    onPressed: () {
+                      _signupEmailController.text = suggestion;
+                      _signupEmailController.selection = TextSelection.fromPosition(
+                        TextPosition(offset: suggestion.length),
+                      );
+                    },
+                  );
+                }).toList(),
+              ),
+            ],
             const SizedBox(height: 12),
             TextFormField(
               controller: _signupPasswordController,
@@ -479,6 +511,8 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                 ),
               ),
             ),
+            const SizedBox(height: 10),
+            _buildPasswordChecklist(_signupPasswordController.text, isDark),
             const SizedBox(height: 12),
             TextFormField(
               controller: _signupConfirmPasswordController,
@@ -549,7 +583,9 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
   }
 
   Future<void> _onLoginPressed() async {
+    _showLoginValidation = true;
     if (!(_loginFormKey.currentState?.validate() ?? false)) {
+      if (mounted) setState(() {});
       return;
     }
     debugPrint('AUTH: Login button pressed for ${_loginEmailController.text.trim()}');
@@ -585,7 +621,9 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
   }
 
   Future<void> _onSignUpPressed() async {
+    _showSignupValidation = true;
     if (!(_signupFormKey.currentState?.validate() ?? false)) {
+      if (mounted) setState(() {});
       return;
     }
     debugPrint('AUTH: Signup button pressed for ${_signupEmailController.text.trim()}');
@@ -626,31 +664,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
   }
 
   Future<void> _onResetPasswordPressed() async {
-    final email = await _showResetPasswordDialog();
-    if (email == null) return;
-
-    final trimmed = email.trim();
-    if (trimmed.isEmpty) {
-      _showStyledSnackBar('Email is required to reset your password.', isSuccess: false);
-      return;
-    }
-
-    try {
-      final result = await _backend.sendPasswordReset(email: trimmed);
-      if (!mounted) return;
-
-      if (result.isSuccess) {
-        _showStyledSnackBar(result.message, isSuccess: true);
-        return;
-      }
-
-      _showNotification(result);
-    } catch (e, stack) {
-      debugPrint('AUTH: Password reset request failed: $e');
-      debugPrintStack(stackTrace: stack);
-      if (!mounted) return;
-      _showStyledSnackBar('Unable to reset password right now. Please try again.', isSuccess: false);
-    }
+    await _showResetPasswordDialog();
   }
 
   Future<void> _onGooglePressed() async {
@@ -791,40 +805,135 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
     );
   }
 
-  Future<String?> _showResetPasswordDialog() async {
+  Future<void> _showResetPasswordDialog() async {
     final controller = TextEditingController(text: _loginEmailController.text.trim());
+    bool isLoading = false;
 
-    final result = await showDialog<String>(
+    await showDialog<void>(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Reset Password'),
-          content: TextField(
-            controller: controller,
-            keyboardType: TextInputType.emailAddress,
-            decoration: const InputDecoration(
-              labelText: 'Email',
-              prefixIcon: Icon(Icons.mail_outline_rounded),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.of(context).pop(controller.text.trim());
-              },
-              child: const Text('Send Link'),
-            ),
-          ],
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Reset Password'),
+              content: TextField(
+                controller: controller,
+                keyboardType: TextInputType.emailAddress,
+                decoration: const InputDecoration(
+                  labelText: 'Email',
+                  prefixIcon: Icon(Icons.mail_outline_rounded),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isLoading ? null : () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: isLoading
+                      ? null
+                      : () async {
+                          final email = controller.text.trim();
+                          if (email.isEmpty) {
+                            if (!context.mounted) return;
+                            _showStyledSnackBar('Email is required to reset your password.', isSuccess: false);
+                            return;
+                          }
+
+                          setDialogState(() => isLoading = true);
+                          try {
+                            final result = await _backend.sendPasswordReset(email: email);
+                            if (!dialogContext.mounted) return;
+
+                            if (result.isSuccess) {
+                              Navigator.of(dialogContext).pop();
+                              if (!mounted) return;
+                              _showStyledSnackBar(result.message, isSuccess: true);
+                              return;
+                            }
+
+                            _showNotification(result);
+                          } catch (e, stack) {
+                            debugPrint('AUTH: Password reset request failed: $e');
+                            debugPrintStack(stackTrace: stack);
+                            if (!dialogContext.mounted) return;
+                            _showStyledSnackBar(
+                              'Unable to reset password right now. Please try again.',
+                              isSuccess: false,
+                            );
+                          } finally {
+                            if (dialogContext.mounted) {
+                              setDialogState(() => isLoading = false);
+                            }
+                          }
+                        },
+                  child: isLoading
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Send Link'),
+                ),
+              ],
+            );
+          },
         );
       },
     );
 
     controller.dispose();
-    return result;
+  }
+
+  Widget _buildPasswordChecklist(String password, bool isDark) {
+    final rules = _passwordRules(password);
+    final textColor = isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: rules.entries.map((entry) {
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 4),
+          child: Row(
+            children: [
+              Icon(
+                entry.value ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
+                size: 16,
+                color: entry.value ? AppColors.success : textColor,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                entry.key,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: textColor,
+                ),
+              ),
+            ],
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Map<String, bool> _passwordRules(String password) {
+    return {
+      'At least 8 characters': password.length >= 8,
+      'Uppercase letter': RegExp(r'[A-Z]').hasMatch(password),
+      'Lowercase letter': RegExp(r'[a-z]').hasMatch(password),
+      'Number': RegExp(r'\d').hasMatch(password),
+      'Special character': RegExp(r'[!@#\$%^&*(),.?":{}|<>_\-\[\]\\/]').hasMatch(password),
+    };
+  }
+
+  List<String> _emailSuggestions(String value) {
+    final text = value.trim();
+    if (text.isEmpty || text.contains('@')) return const [];
+    return [
+      '$text@gmail.com',
+      '$text@yahoo.com',
+      '$text@outlook.com',
+    ];
   }
 
   void _showNotification(AuthResult result) {

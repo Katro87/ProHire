@@ -275,6 +275,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
             isDark: isDark,
             screen: screen,
             hasBadge: true,
+            tooltip: 'App settings',
           ),
           SizedBox(width: screen.spacing(8)),
           _buildIconButton(
@@ -282,6 +283,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
             onTap: () {},
             isDark: isDark,
             screen: screen,
+            tooltip: 'Add to favorites',
           ),
         ],
       ),
@@ -294,8 +296,9 @@ class _HomeScreenV2State extends State<HomeScreenV2>
     required bool isDark,
     required ScreenInfo screen,
     bool hasBadge = false,
+    String? tooltip,
   }) {
-    return Stack(
+    final button = Stack(
       children: [
         Material(
           color: isDark ? AppColors.cardDark : AppColors.surfaceLight,
@@ -341,6 +344,8 @@ class _HomeScreenV2State extends State<HomeScreenV2>
           ),
       ],
     );
+
+      return tooltip == null ? button : Tooltip(message: tooltip, child: button);
   }
 
   Widget _buildTabBar(BuildContext context, ScreenInfo screen) {

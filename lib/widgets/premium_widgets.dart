@@ -251,226 +251,225 @@ class _ProfessionalCardState extends State<ProfessionalCard>
     final pro = widget.professional;
     final isTrade = pro.isTrade;
     final accentColor = isTrade ? AppColors.trade : AppColors.freelance;
+    final avatarUrl = pro.safeAvatarUrl;
+    final safeName = pro.safeName;
+    final safeProfession = pro.safeProfession;
 
-    return GestureDetector(
-      onTapDown: (_) => _controller.forward(),
-      onTapUp: (_) {
-        _controller.reverse();
-        widget.onTap();
-      },
-      onTapCancel: () => _controller.reverse(),
-      child: AnimatedBuilder(
-        animation: _scaleAnimation,
-        builder: (context, child) => Transform.scale(
-          scale: _scaleAnimation.value,
-          child: child,
-        ),
-        child: Container(
-          decoration: BoxDecoration(
-            color: isDark ? AppColors.cardDark : AppColors.cardLight,
-            borderRadius: BorderRadius.circular(ProTheme.radiusLg),
-            boxShadow: isDark ? null : AppColors.softShadow,
-            border: isDark
-                ? Border.all(color: AppColors.borderDark, width: 1)
-                : null,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: widget.onTap,
+        borderRadius: BorderRadius.circular(ProTheme.radiusLg),
+        child: AnimatedBuilder(
+          animation: _scaleAnimation,
+          builder: (context, child) => Transform.scale(
+            scale: _scaleAnimation.value,
+            child: child,
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Image Section
-              Expanded(
-                flex: 3,
-                child: Stack(
-                  children: [
-                    // Avatar
-                    Container(
-                      width: double.infinity,
-                      decoration: BoxDecoration(
-                        borderRadius: const BorderRadius.vertical(
-                          top: Radius.circular(ProTheme.radiusLg),
+          child: Container(
+            decoration: BoxDecoration(
+              color: isDark ? AppColors.cardDark : AppColors.cardLight,
+              borderRadius: BorderRadius.circular(ProTheme.radiusLg),
+              boxShadow: isDark ? null : AppColors.softShadow,
+              border: isDark
+                  ? Border.all(color: AppColors.borderDark, width: 1)
+                  : null,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Image Section
+                Expanded(
+                  flex: 3,
+                  child: Stack(
+                    children: [
+                      Container(
+                        width: double.infinity,
+                        decoration: BoxDecoration(
+                          borderRadius: const BorderRadius.vertical(
+                            top: Radius.circular(ProTheme.radiusLg),
+                          ),
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              accentColor.withValues(alpha: 0.1),
+                              accentColor.withValues(alpha: 0.05),
+                            ],
+                          ),
                         ),
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [
-                            accentColor.withValues(alpha: 0.1),
-                            accentColor.withValues(alpha: 0.05),
-                          ],
-                        ),
-                      ),
-                      child: ClipRRect(
-                        borderRadius: const BorderRadius.vertical(
-                          top: Radius.circular(ProTheme.radiusLg),
-                        ),
-                        child: Image.network(
-                          pro.avatarUrl,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => Center(
-                            child: Icon(
-                              Icons.person,
-                              size: 48,
-                              color: accentColor.withValues(alpha: 0.5),
+                        child: ClipRRect(
+                          borderRadius: const BorderRadius.vertical(
+                            top: Radius.circular(ProTheme.radiusLg),
+                          ),
+                          child: Image.network(
+                            avatarUrl,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => Center(
+                              child: Icon(
+                                Icons.person,
+                                size: 48,
+                                color: accentColor.withValues(alpha: 0.5),
+                              ),
                             ),
                           ),
                         ),
                       ),
-                    ),
-                    // Badges
-                    Positioned(
-                      top: 8,
-                      left: 8,
-                      right: 8,
-                      child: Row(
-                        children: [
-                          if (pro.isVerified)
-                            _buildBadge(
-                              icon: Icons.verified,
-                              color: AppColors.primary,
-                              isDark: isDark,
-                            ),
-                          if (pro.isTopRated) ...[
-                            const SizedBox(width: 6),
-                            _buildBadge(
-                              icon: Icons.star,
-                              color: AppColors.starFilled,
-                              isDark: isDark,
-                            ),
-                          ],
-                          const Spacer(),
-                          if (!pro.isAvailable)
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 4,
+                      Positioned(
+                        top: 8,
+                        left: 8,
+                        right: 8,
+                        child: Row(
+                          children: [
+                            if (pro.isVerified)
+                              _buildBadge(
+                                icon: Icons.verified,
+                                color: AppColors.primary,
+                                isDark: isDark,
                               ),
-                              decoration: BoxDecoration(
-                                color: isDark
-                                    ? Colors.black54
-                                    : Colors.white.withValues(alpha: 0.9),
-                                borderRadius: BorderRadius.circular(20),
+                            if (pro.isTopRated) ...[
+                              const SizedBox(width: 6),
+                              _buildBadge(
+                                icon: Icons.star,
+                                color: AppColors.starFilled,
+                                isDark: isDark,
                               ),
-                              child: Text(
-                                'Busy',
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w600,
-                                  color: AppColors.textTertiaryLight,
+                            ],
+                            const Spacer(),
+                            if (!pro.isAvailable)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: isDark
+                                      ? Colors.black54
+                                      : Colors.white.withValues(alpha: 0.9),
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Text(
+                                  'Busy',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.textTertiaryLight,
+                                  ),
                                 ),
                               ),
-                            ),
-                        ],
-                      ),
-                    ),
-                    // Type Badge
-                    Positioned(
-                      bottom: 8,
-                      right: 8,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 5,
-                        ),
-                        decoration: BoxDecoration(
-                          gradient: isTrade
-                              ? AppColors.tradeGradient
-                              : AppColors.freelanceGradient,
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          isTrade ? 'Trade' : 'Freelance',
-                          style: const TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
-                          ),
+                          ],
                         ),
                       ),
-                    ),
-                  ],
-                ),
-              ),
-              // Info Section
-              Expanded(
-                flex: 2,
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Name
-                      Text(
-                        pro.name,
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: isDark
-                              ? AppColors.textPrimaryDark
-                              : AppColors.textPrimaryLight,
+                      Positioned(
+                        bottom: 8,
+                        right: 8,
+                        child: Tooltip(
+                          message: pro.isVerified ? 'Verified professional' : 'Unverified professional',
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 5,
+                            ),
+                            decoration: BoxDecoration(
+                              gradient: isTrade
+                                  ? AppColors.tradeGradient
+                                  : AppColors.freelanceGradient,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(
+                              pro.isVerified ? 'Verified' : 'Unverified',
+                              style: const TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 2),
-                      // Profession
-                      Text(
-                        pro.profession,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: accentColor,
-                          fontWeight: FontWeight.w500,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const Spacer(),
-                      // Rating and Rate
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.star_rounded,
-                            size: 14,
-                            color: AppColors.starFilled,
-                          ),
-                          const SizedBox(width: 3),
-                          Text(
-                            pro.rating.toStringAsFixed(1),
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: isDark
-                                  ? AppColors.textPrimaryDark
-                                  : AppColors.textPrimaryLight,
-                            ),
-                          ),
-                          Text(
-                            ' (${pro.reviewCount})',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: isDark
-                                  ? AppColors.textTertiaryDark
-                                  : AppColors.textTertiaryLight,
-                            ),
-                          ),
-                          const Spacer(),
-                          Text(
-                            pro.rateDisplay,
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              color: isDark
-                                  ? AppColors.textPrimaryDark
-                                  : AppColors.textPrimaryLight,
-                            ),
-                          ),
-                        ],
                       ),
                     ],
                   ),
                 ),
-              ),
+                // Info Section
+                Expanded(
+                  flex: 2,
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          safeName,
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: isDark
+                                ? AppColors.textPrimaryDark
+                                : AppColors.textPrimaryLight,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          safeProfession,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: accentColor,
+                            fontWeight: FontWeight.w500,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const Spacer(),
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.star_rounded,
+                              size: 14,
+                              color: AppColors.starFilled,
+                            ),
+                            const SizedBox(width: 3),
+                            Text(
+                              pro.rating.toStringAsFixed(1),
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: isDark
+                                    ? AppColors.textPrimaryDark
+                                    : AppColors.textPrimaryLight,
+                              ),
+                            ),
+                            Text(
+                              ' (${pro.reviewCount})',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: isDark
+                                    ? AppColors.textTertiaryDark
+                                    : AppColors.textTertiaryLight,
+                              ),
+                            ),
+                            const Spacer(),
+                            Text(
+                              pro.rateDisplay,
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: isDark
+                                    ? AppColors.textPrimaryDark
+                                    : AppColors.textPrimaryLight,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
             ],
           ),
         ),
+      ),
       ),
     );
   }
@@ -594,6 +593,7 @@ class PremiumSearchBar extends StatelessWidget {
 
     return Container(
       height: 52,
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         color: isDark ? AppColors.cardDark : AppColors.surfaceLight,
         borderRadius: BorderRadius.circular(ProTheme.radiusMd),

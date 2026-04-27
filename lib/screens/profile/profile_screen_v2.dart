@@ -42,6 +42,7 @@ class _ProfileScreenV2State extends State<ProfileScreenV2>
   }
 
   void _onScroll() {
+    if (!mounted) return;
     setState(() {
       _scrollOffset = _scrollController.offset;
     });
@@ -246,6 +247,7 @@ class _ProfileScreenV2State extends State<ProfileScreenV2>
                   onTap: () => Navigator.pop(context),
                   isDark: isDark,
                   elevated: !showTitle,
+                  tooltip: 'Back',
                 ),
                 const Spacer(),
                 AnimatedOpacity(
@@ -268,6 +270,7 @@ class _ProfileScreenV2State extends State<ProfileScreenV2>
                   onTap: () {},
                   isDark: isDark,
                   elevated: !showTitle,
+                  tooltip: 'Share profile',
                 ),
                 const SizedBox(width: 8),
                 _buildCircleButton(
@@ -275,6 +278,7 @@ class _ProfileScreenV2State extends State<ProfileScreenV2>
                   onTap: _toggleFavorite,
                   isDark: isDark,
                   elevated: !showTitle,
+                  tooltip: 'Add to favorites',
                 ),
                 const SizedBox(width: 8),
               ],
@@ -290,8 +294,9 @@ class _ProfileScreenV2State extends State<ProfileScreenV2>
     required VoidCallback onTap,
     required bool isDark,
     bool elevated = false,
+    String? tooltip,
   }) {
-    return GestureDetector(
+    final button = GestureDetector(
       onTap: onTap,
       child: Container(
         width: 44,
@@ -318,6 +323,8 @@ class _ProfileScreenV2State extends State<ProfileScreenV2>
         ),
       ),
     );
+
+    return tooltip == null ? button : Tooltip(message: tooltip, child: button);
   }
 
   Widget _buildHeader(

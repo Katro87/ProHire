@@ -119,9 +119,19 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             centerTitle: true,
             actions: [
               IconButton(
+                onPressed: () => _showImageDialog(profile),
+                icon: const Icon(Icons.image_outlined),
+                tooltip: 'Upload profile image',
+              ),
+              IconButton(
                 onPressed: () => _showEditDialog(profile),
                 icon: const Icon(Icons.edit_outlined),
-                tooltip: 'Edit Profile',
+                tooltip: 'Edit profile',
+              ),
+              IconButton(
+                onPressed: _logout,
+                icon: const Icon(Icons.logout_rounded),
+                tooltip: 'Logout',
               ),
             ],
           ),
@@ -130,55 +140,106 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 30,
-                      backgroundImage: profile.profileImageUrl?.isNotEmpty == true
-                          ? NetworkImage(profile.profileImageUrl!)
-                          : null,
-                      child: profile.profileImageUrl?.isNotEmpty == true
-                          ? null
-                          : const Icon(Icons.person_outline_rounded, size: 28),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: isDark ? AppColors.cardDark : AppColors.surfaceLight,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: isDark ? AppColors.borderDark : AppColors.borderLight,
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                  ),
+                  child: Row(
+                    children: [
+                      Stack(
                         children: [
-                          Text(
-                            profile.name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.w700,
-                            ),
+                          CircleAvatar(
+                            radius: 34,
+                            backgroundImage: profile.profileImageUrl?.isNotEmpty == true
+                                ? NetworkImage(profile.profileImageUrl!)
+                                : null,
+                            child: profile.profileImageUrl?.isNotEmpty == true
+                                ? null
+                                : const Icon(Icons.person_outline_rounded, size: 30),
                           ),
-                          const SizedBox(height: 4),
-                          Text(
-                            profile.email,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: isDark
-                                  ? AppColors.textSecondaryDark
-                                  : AppColors.textSecondaryLight,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Role: ${profile.role.isEmpty ? 'Not set' : profile.role}',
-                            style: TextStyle(
-                              color: isDark
-                                  ? AppColors.textSecondaryDark
-                                  : AppColors.textSecondaryLight,
+                          Positioned(
+                            right: 0,
+                            bottom: 0,
+                            child: Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                color: AppColors.primary,
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: isDark ? AppColors.cardDark : AppColors.surfaceLight,
+                                  width: 2,
+                                ),
+                              ),
+                              child: Icon(
+                                profile.profileComplete ? Icons.verified_rounded : Icons.info_outline_rounded,
+                                size: 12,
+                                color: Colors.white,
+                              ),
                             ),
                           ),
                         ],
                       ),
-                    ),
-                  ],
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              profile.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              profile.email,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: isDark
+                                    ? AppColors.textSecondaryDark
+                                    : AppColors.textSecondaryLight,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: [
+                                _statusChip(
+                                  label: profile.profileComplete ? 'Verified' : 'Unverified',
+                                  icon: profile.profileComplete ? Icons.verified_rounded : Icons.shield_outlined,
+                                  color: profile.profileComplete ? AppColors.success : AppColors.warning,
+                                  isDark: isDark,
+                                ),
+                                _statusChip(
+                                  label: user.phoneNumber?.isNotEmpty == true ? 'Phone verified' : 'Phone unverified',
+                                  icon: user.phoneNumber?.isNotEmpty == true ? Icons.call_rounded : Icons.call_outlined,
+                                  color: user.phoneNumber?.isNotEmpty == true ? AppColors.success : AppColors.error,
+                                  isDark: isDark,
+                                ),
+                                _statusChip(
+                                  label: 'Balance: ${profile.balance.toStringAsFixed(0)}',
+                                  icon: Icons.account_balance_wallet_outlined,
+                                  color: AppColors.primary,
+                                  isDark: isDark,
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 20),
                 _sectionTitle('Bio'),
@@ -198,6 +259,32 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           ),
         );
       },
+    );
+  }
+
+  Widget _statusChip({
+    required String label,
+    required IconData icon,
+    required Color color,
+    required bool isDark,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: isDark ? 0.16 : 0.12),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(fontSize: 12, color: color, fontWeight: FontWeight.w600),
+          ),
+        ],
+      ),
     );
   }
 
@@ -234,6 +321,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
 
     final nameController = TextEditingController(text: profile.name);
     final emailController = TextEditingController(text: profile.email);
+    final imageController = TextEditingController(text: profile.profileImageUrl ?? '');
     final bioController = TextEditingController(text: profile.bio);
     final currentSkills = _extractSkills(profile);
     final skillsController = TextEditingController(text: currentSkills.join(', '));
@@ -260,6 +348,12 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                       controller: emailController,
                       keyboardType: TextInputType.emailAddress,
                       decoration: const InputDecoration(labelText: 'Email'),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: imageController,
+                      keyboardType: TextInputType.url,
+                      decoration: const InputDecoration(labelText: 'Profile Image URL'),
                     ),
                     const SizedBox(height: 12),
                     DropdownButtonFormField<String>(
@@ -316,6 +410,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                         'uid': currentUser.uid,
                         'name': name.isEmpty ? 'User' : name,
                         'email': email.isEmpty ? (currentUser.email ?? profile.email) : email,
+                        'profileImageUrl': imageController.text.trim().isEmpty ? null : imageController.text.trim(),
                         'role': role,
                         'bio': bio,
                         'skills': skills,
@@ -349,8 +444,19 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
 
     nameController.dispose();
     emailController.dispose();
+    imageController.dispose();
     bioController.dispose();
     skillsController.dispose();
+  }
+
+  Future<void> _showImageDialog(UserProfile profile) async {
+    await _showEditDialog(profile);
+  }
+
+  Future<void> _logout() async {
+    await FirebaseAuth.instance.signOut();
+    if (!mounted) return;
+    Navigator.pushNamedAndRemoveUntil(context, '/auth', (route) => false);
   }
 
   void _showSnackBar(String message, {required bool isSuccess}) {

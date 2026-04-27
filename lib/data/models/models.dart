@@ -12,6 +12,7 @@ class Professional {
   final String category;
   final ProfessionalType type;
   final String avatarUrl;
+  final String? profileImageUrl;
   final String? coverUrl;
   final double rating;
   final int reviewCount;
@@ -26,6 +27,8 @@ class Professional {
   final bool isVerified;
   final bool isAvailable;
   final bool isTopRated;
+  final bool phoneVerified;
+  final bool isProfessional;
   final String location;
   final double? distance;
   final List<String> languages;
@@ -35,6 +38,7 @@ class Professional {
   final List<String> certifications;
   final Map<String, dynamic>? availability;
   final DateTime memberSince;
+  final DateTime? createdAt;
 
   const Professional({
     required this.id,
@@ -43,6 +47,7 @@ class Professional {
     required this.category,
     required this.type,
     required this.avatarUrl,
+    this.profileImageUrl,
     this.coverUrl,
     required this.rating,
     required this.reviewCount,
@@ -57,6 +62,8 @@ class Professional {
     this.isVerified = false,
     this.isAvailable = true,
     this.isTopRated = false,
+    this.phoneVerified = false,
+    this.isProfessional = true,
     required this.location,
     this.distance,
     this.languages = const ['English'],
@@ -66,7 +73,16 @@ class Professional {
     this.certifications = const [],
     this.availability,
     required this.memberSince,
+    this.createdAt,
   });
+
+  String get safeName => name.trim().isEmpty ? 'Unknown User' : name.trim();
+
+  String get safeProfession => profession.trim().isEmpty ? 'Not set' : profession.trim();
+
+  String get safeAvatarUrl => (profileImageUrl ?? avatarUrl).trim().isEmpty
+      ? 'https://via.placeholder.com/200'
+      : (profileImageUrl ?? avatarUrl).trim();
 
   /// Whether this is a trade professional
   bool get isTrade => type == ProfessionalType.trade;

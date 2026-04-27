@@ -4,6 +4,7 @@ class Professional {
   final String profession;
   final String category;
   final String avatarUrl;
+  final String? profileImageUrl;
   final double rating;
   final int reviewCount;
   final String bio;
@@ -13,6 +14,9 @@ class Professional {
   final double hourlyRate;
   final bool isVerified;
   final bool isAvailable;
+  final bool phoneVerified;
+  final bool isProfessional;
+  final DateTime? createdAt;
   final List<PortfolioItem> portfolio;
   final List<Review> reviews;
   final List<WorkHistory> workHistory;
@@ -23,6 +27,7 @@ class Professional {
     required this.profession,
     required this.category,
     required this.avatarUrl,
+    this.profileImageUrl,
     required this.rating,
     required this.reviewCount,
     required this.bio,
@@ -32,10 +37,21 @@ class Professional {
     required this.hourlyRate,
     this.isVerified = false,
     this.isAvailable = true,
+    this.phoneVerified = false,
+    this.isProfessional = true,
+    this.createdAt,
     this.portfolio = const [],
     this.reviews = const [],
     this.workHistory = const [],
   });
+
+  String get safeName => name.trim().isEmpty ? 'Unknown User' : name.trim();
+
+  String get safeProfession => profession.trim().isEmpty ? 'Not set' : profession.trim();
+
+  String get safeAvatarUrl => (profileImageUrl ?? avatarUrl).trim().isEmpty
+      ? 'https://via.placeholder.com/200'
+      : (profileImageUrl ?? avatarUrl).trim();
 }
 
 class PortfolioItem {
