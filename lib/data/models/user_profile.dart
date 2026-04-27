@@ -4,6 +4,8 @@ class UserProfile {
   final String uid;
   final String name;
   final String email;
+  final String profession;
+  final double balance;
   final String role; // client or professional
   final String bio;
   final DateTime? dob;
@@ -18,6 +20,8 @@ class UserProfile {
     required this.uid,
     required this.name,
     required this.email,
+    this.profession = 'Not set',
+    this.balance = 0,
     required this.role,
     required this.bio,
     required this.dob,
@@ -33,6 +37,8 @@ class UserProfile {
     return {
       'name': name,
       'email': email,
+      'profession': profession,
+      'balance': balance,
       'role': role,
       'bio': bio,
       'dob': dob != null ? Timestamp.fromDate(dob!) : null,
@@ -47,20 +53,59 @@ class UserProfile {
   }
 
   static UserProfile fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
-    final data = doc.data() ?? {};
+    final data = doc.data() ?? <String, dynamic>{};
+
+    final uid = doc.id;
+    final name = _asString(data['name'], fallback: 'Unknown User');
+    final email = _asString(data['email']);
+    final profession = _asString(data['profession'], fallback: 'Not set');
+    final balance = _asDouble(data['balance']);
+    final role = _asString(data['role'], fallback: 'client');
+    final bio = _asString(data['bio']);
+    final companyName = _asNullableString(data['companyName']);
+    final currency = _asString(data['currency'], fallback: 'USD');
+    final profileImageUrl = _asNullableString(data['profileImageUrl']);
+
+    final rawProfessionalData = data['professionalData'];
+    final professionalData = rawProfessionalData is Map
+        ? Map<String, dynamic>.from(rawProfessionalData)
+        : null;
+
+    final rawClientData = data['clientData'];
+    final clientData = rawClientData is Map
+        ? Map<String, dynamic>.from(rawClientData)
+        : null;
+
     return UserProfile(
-      uid: doc.id,
-      name: data['name'] as String? ?? 'User',
-      email: data['email'] as String? ?? '',
-      role: data['role'] as String? ?? 'client',
-      bio: data['bio'] as String? ?? '',
+      uid: uid,
+      name: name,
+      email: email,
+      profession: profession,
+      balance: balance,
+      role: role,
+      bio: bio,
       dob: (data['dob'] as Timestamp?)?.toDate(),
-      companyName: data['companyName'] as String?,
-      currency: data['currency'] as String? ?? 'USD',
-      profileImageUrl: data['profileImageUrl'] as String?,
-      professionalData: data['professionalData'] as Map<String, dynamic>?,
-      clientData: data['clientData'] as Map<String, dynamic>?,
+      companyName: companyName,
+      currency: currency,
+      profileImageUrl: profileImageUrl,
+      professionalData: professionalData,
+      clientData: clientData,
       profileComplete: data['profileComplete'] as bool? ?? false,
     );
+  }
+
+  static String _asString(dynamic value, {String fallback = ''}) {
+    final parsed = value?.toString().trim() ?? '';
+    return parsed.isEmpty ? fallback : parsed;
+  }
+
+  static String? _asNullableString(dynamic value) {
+    final parsed = value?.toString().trim() ?? '';
+    return parsed.isEmpty ? null : parsed;
+  }
+
+  static double _asDouble(dynamic value) {
+    if (value is num) return value.toDouble();
+    return double.tryParse(value?.toString() ?? '') ?? 0;
   }
 }

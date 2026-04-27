@@ -6,9 +6,10 @@ class UserProfileService {
       : _firestore = firestore ?? FirebaseFirestore.instance;
 
   final FirebaseFirestore _firestore;
+  static const String _usersCollection = 'users';
 
   Future<UserProfile> ensureProfile(String uid, {String? email, String? name}) async {
-    final docRef = _firestore.collection('users').doc(uid);
+    final docRef = _firestore.collection(_usersCollection).doc(uid);
     final doc = await docRef.get();
 
     if (!doc.exists) {
@@ -16,6 +17,8 @@ class UserProfileService {
         'uid': uid,
         'name': (name ?? 'User').trim().isEmpty ? 'User' : (name ?? 'User').trim(),
         'email': (email ?? '').trim(),
+        'profession': 'Not set',
+        'balance': 0.0,
         'role': null,
         'bio': '',
         'skills': <String>[],
@@ -34,6 +37,12 @@ class UserProfileService {
       if ((data['email'] as String?)?.trim().isEmpty ?? true) {
         updates['email'] = (email ?? '').trim();
       }
+      if ((data['profession'] as String?)?.trim().isEmpty ?? true) {
+        updates['profession'] = 'Not set';
+      }
+      if (data['balance'] == null) {
+        updates['balance'] = 0.0;
+      }
       if (!data.containsKey('role')) updates['role'] = null;
       if (!data.containsKey('bio')) updates['bio'] = '';
       if (!data.containsKey('skills')) updates['skills'] = <String>[];
@@ -49,33 +58,55 @@ class UserProfileService {
   }
 
   Future<UserProfile?> fetchProfile(String uid) async {
-    final doc = await _firestore.collection('users').doc(uid).get();
-    if (!doc.exists) return null;
+    final docRef = _firestore.collection(_usersCollection).doc(uid);
+    final doc = await docRef.get();
+    if (!doc.exists) {
+      return ensureProfile(uid);
+    }
+
+    final data = doc.data() ?? <String, dynamic>{};
+    final needsRepair = !data.containsKey('name') ||
+        !data.containsKey('email') ||
+        !data.containsKey('profession') ||
+        !data.containsKey('balance');
+    if (needsRepair) {
+      return ensureProfile(
+        uid,
+        email: data['email']?.toString(),
+        name: data['name']?.toString(),
+      );
+    }
+
     return UserProfile.fromDoc(doc);
   }
 
   Stream<UserProfile?> watchProfile(String uid) {
-    return _firestore.collection('users').doc(uid).snapshots().map((doc) {
+    return _firestore.collection(_usersCollection).doc(uid).snapshots().map((doc) {
       if (!doc.exists) return null;
       return UserProfile.fromDoc(doc);
     });
   }
 
   Future<bool> isProfileComplete(String uid) async {
-    final doc = await _firestore.collection('users').doc(uid).get();
+    final doc = await _firestore.collection(_usersCollection).doc(uid).get();
     return (doc.data()?['profileComplete'] as bool?) ?? false;
   }
 
   Future<void> saveProfile(UserProfile profile) async {
-    await _firestore.collection('users').doc(profile.uid).set(
-          profile.toMap(),
+    final safeProfession = ((profile.professionalData?['title'] as String?) ?? '').trim();
+
+    await _firestore.collection(_usersCollection).doc(profile.uid).set(
+          {
+            ...profile.toMap(),
+            'profession': safeProfession.isEmpty ? 'Not set' : safeProfession,
+          },
           SetOptions(merge: true),
         );
   }
 
   Future<List<UserProfile>> fetchProfessionals() async {
     final snapshot = await _firestore
-        .collection('users')
+      .collection(_usersCollection)
         .where('role', isEqualTo: 'professional')
         .where('profileComplete', isEqualTo: true)
         .get();
@@ -106,7 +137,7 @@ class UserProfileService {
 
   Future<void> seedDummyProfessionalsIfEmpty() async {
     final snapshot = await _firestore
-        .collection('users')
+      .collection(_usersCollection)
         .where('role', isEqualTo: 'professional')
         .limit(1)
         .get();
@@ -225,9 +256,11 @@ class UserProfileService {
     ];
 
     for (final user in dummyUsers) {
-      final ref = _firestore.collection('users').doc(user['uid'] as String);
+      final ref = _firestore.collection(_usersCollection).doc(user['uid'] as String);
       batch.set(ref, {
         ...user,
+        'profession': user['professionalData']?['title'] ?? 'Not set',
+        'balance': 0.0,
         'createdAt': now,
         'updatedAt': now,
       }, SetOptions(merge: true));

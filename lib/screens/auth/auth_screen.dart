@@ -629,21 +629,28 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
     final email = await _showResetPasswordDialog();
     if (email == null) return;
 
-    try {
-      final trimmed = email.trim();
-      if (trimmed.isNotEmpty) {
-        await FirebaseAuth.instance.sendPasswordResetEmail(email: trimmed);
-      }
-    } catch (e, stack) {
-      debugPrint('AUTH: Password reset request failed (generic response shown): $e');
-      debugPrintStack(stackTrace: stack);
+    final trimmed = email.trim();
+    if (trimmed.isEmpty) {
+      _showStyledSnackBar('Email is required to reset your password.', isSuccess: false);
+      return;
     }
 
-    if (!mounted) return;
-    _showStyledSnackBar(
-      'If this email exists, a reset link has been sent',
-      isSuccess: true,
-    );
+    try {
+      final result = await _backend.sendPasswordReset(email: trimmed);
+      if (!mounted) return;
+
+      if (result.isSuccess) {
+        _showStyledSnackBar(result.message, isSuccess: true);
+        return;
+      }
+
+      _showNotification(result);
+    } catch (e, stack) {
+      debugPrint('AUTH: Password reset request failed: $e');
+      debugPrintStack(stackTrace: stack);
+      if (!mounted) return;
+      _showStyledSnackBar('Unable to reset password right now. Please try again.', isSuccess: false);
+    }
   }
 
   Future<void> _onGooglePressed() async {

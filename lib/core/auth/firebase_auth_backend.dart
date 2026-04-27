@@ -20,6 +20,8 @@ enum AuthErrorCase {
   unknown,
 }
 
+const String _usersCollection = 'users';
+
 class AuthResult {
   final bool isSuccess;
   final AuthErrorCase errorCase;
@@ -122,10 +124,21 @@ class FirebaseAuthBackend {
         await credential.user!.updateDisplayName(resolvedName);
       }
 
-      final syncedName = await _ensureUserProfile(
-        user: credential.user,
-        fallbackName: resolvedName,
-      );
+      String syncedName;
+      try {
+        syncedName = await _ensureUserProfile(
+          user: credential.user,
+          fallbackName: resolvedName,
+        );
+      } catch (e, stack) {
+        debugPrint('AUTH ERROR: signup profile sync failed: $e');
+        debugPrintStack(stackTrace: stack);
+        await _safeSignOut();
+        return const AuthResult.failure(
+          errorCase: AuthErrorCase.unknown,
+          message: 'Account created, but profile setup failed. Please try again.',
+        );
+      }
 
       if (credential.user != null) {
         print('LOGIN SUCCESS: uid = ${credential.user!.uid}');
@@ -173,13 +186,29 @@ class FirebaseAuthBackend {
         password: password,
       );
 
+      String syncedName;
+      try {
+        syncedName = await _ensureUserProfile(
+          user: credential.user,
+          fallbackName: credential.user?.displayName,
+        );
+      } catch (e, stack) {
+        debugPrint('AUTH ERROR: login profile sync failed: $e');
+        debugPrintStack(stackTrace: stack);
+        await _safeSignOut();
+        return const AuthResult.failure(
+          errorCase: AuthErrorCase.unknown,
+          message: 'Unable to prepare profile data. Please try again.',
+        );
+      }
+
       if (credential.user != null) {
         print('LOGIN SUCCESS: uid = ${credential.user!.uid}');
       }
 
       return AuthResult.success(
         message: 'Login successful',
-        userName: credential.user?.displayName,
+        userName: syncedName,
       );
     } on FirebaseAuthException catch (e, stack) {
       debugPrint('AUTH ERROR: ${e.code} - ${e.message}');
@@ -363,55 +392,92 @@ class FirebaseAuthBackend {
   }) async {
     if (user == null) return 'User';
 
-    try {
-      final doc = _firestore.collection('users').doc(user.uid);
-      final snapshot = await doc.get();
-      print('FIRESTORE USER FETCHED');
+    final doc = _firestore.collection(_usersCollection).doc(user.uid);
+    final snapshot = await doc.get();
+    print('FIRESTORE USER FETCHED');
 
-      final resolvedName = _resolveDisplayName(user.email ?? '', fallbackName ?? user.displayName);
+    final resolvedName = _resolveDisplayName(user.email ?? '', fallbackName ?? user.displayName);
+    final resolvedEmail = (user.email ?? '').trim();
 
-      if (!snapshot.exists) {
-        await doc.set({
-          'uid': user.uid,
-          'name': resolvedName,
-          'email': user.email,
-          'role': null,
-          'bio': '',
-          'skills': <String>[],
-          'profileComplete': false,
-          'createdAt': FieldValue.serverTimestamp(),
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
-        print('USER CREATED IN FIRESTORE');
-      } else {
-        final data = snapshot.data() ?? <String, dynamic>{};
-        final existingName = (data['name'] as String?)?.trim() ?? '';
-        final existingEmail = (data['email'] as String?)?.trim() ?? '';
-
-        if (existingName.isEmpty ||
-            existingEmail.isEmpty ||
-            data['uid'] == null ||
-            !data.containsKey('role') ||
-            !data.containsKey('bio') ||
-            !data.containsKey('skills')) {
-          await doc.set({
-            'uid': user.uid,
-            'name': existingName.isEmpty ? resolvedName : existingName,
-            'email': existingEmail.isEmpty ? user.email : existingEmail,
-            if (!data.containsKey('role')) 'role': null,
-            if (!data.containsKey('bio')) 'bio': '',
-            if (!data.containsKey('skills')) 'skills': <String>[],
-            'updatedAt': FieldValue.serverTimestamp(),
-          }, SetOptions(merge: true));
-        }
-
-        return existingName.isEmpty ? resolvedName : existingName;
-      }
+    if (!snapshot.exists) {
+      await doc.set(_buildUserProfileSeed(
+        uid: user.uid,
+        name: resolvedName,
+        email: resolvedEmail,
+      ));
+      print('USER CREATED IN FIRESTORE');
       return resolvedName;
-    } catch (e, stack) {
-      debugPrint('AUTH ERROR: firestore profile sync failed: $e');
-      debugPrintStack(stackTrace: stack);
-      return _resolveDisplayName(user.email ?? '', fallbackName ?? user.displayName);
+    }
+
+    final data = snapshot.data() ?? <String, dynamic>{};
+    final existingName = (data['name'] as String?)?.trim() ?? '';
+    final existingEmail = (data['email'] as String?)?.trim() ?? '';
+    final updates = <String, dynamic>{};
+
+    if ((data['uid'] as String?)?.trim().isEmpty ?? true) {
+      updates['uid'] = user.uid;
+    }
+    if (existingName.isEmpty) {
+      updates['name'] = resolvedName;
+    }
+    if (existingEmail.isEmpty) {
+      updates['email'] = resolvedEmail;
+    }
+    if (!data.containsKey('profession')) {
+      updates['profession'] = 'Not set';
+    }
+    if (!data.containsKey('balance')) {
+      updates['balance'] = 0.0;
+    }
+    if (!data.containsKey('role')) {
+      updates['role'] = null;
+    }
+    if (!data.containsKey('bio')) {
+      updates['bio'] = '';
+    }
+    if (!data.containsKey('skills')) {
+      updates['skills'] = <String>[];
+    }
+    if (!data.containsKey('profileComplete')) {
+      updates['profileComplete'] = false;
+    }
+    if (!data.containsKey('createdAt')) {
+      updates['createdAt'] = FieldValue.serverTimestamp();
+    }
+
+    if (updates.isNotEmpty) {
+      updates['updatedAt'] = FieldValue.serverTimestamp();
+      await doc.set(updates, SetOptions(merge: true));
+    }
+
+    return existingName.isEmpty ? resolvedName : existingName;
+  }
+
+  Map<String, dynamic> _buildUserProfileSeed({
+    required String uid,
+    required String name,
+    required String email,
+  }) {
+    return {
+      'uid': uid,
+      'name': name,
+      'email': email,
+      'profession': 'Not set',
+      'balance': 0.0,
+      'role': null,
+      'bio': '',
+      'skills': <String>[],
+      'profileComplete': false,
+      'createdAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+  }
+
+  Future<void> _safeSignOut() async {
+    try {
+      await _auth.signOut();
+    } catch (_) {
+      // Ignore sign-out cleanup failure.
     }
   }
 
@@ -426,8 +492,9 @@ class FirebaseAuthBackend {
     final user = _auth.currentUser;
     if (user == null) return;
 
-    await _firestore.collection('users').doc(user.uid).set({
+    await _firestore.collection(_usersCollection).doc(user.uid).set({
       'role': role,
+      'profession': role,
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
   }

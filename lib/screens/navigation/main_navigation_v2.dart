@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import '../../core/services/user_profile_service.dart';
 import '../../core/theme/app_colors_v2.dart';
 import '../../core/theme/pro_theme_v2.dart';
 import '../../core/utils/screen_utils.dart';
@@ -339,6 +340,7 @@ class _ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<_ProfileScreen> {
+  final UserProfileService _profileService = UserProfileService();
   String _userName = 'User';
   String _userEmail = 'user@email.com';
   String _userBio = '';
@@ -360,18 +362,26 @@ class _ProfileScreenState extends State<_ProfileScreen> {
       return;
     }
 
-    final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+    final profile = await _profileService.ensureProfile(
+      user.uid,
+      email: user.email,
+      name: user.displayName,
+    );
     if (!mounted) return;
 
     setState(() {
-      _userName = doc.data()?['displayName'] as String? ?? user.displayName ?? 'User';
-      _userEmail = doc.data()?['email'] as String? ?? user.email ?? 'user@email.com';
-      _userBio = doc.data()?['bio'] as String? ?? '';
-      _userLocation = doc.data()?['location'] as String? ?? '';
-      _userSkills = (doc.data()?['skills'] as List?)
-              ?.map((e) => e.toString())
-              .toList() ??
-          [];
+      _userName = profile.name.trim().isEmpty ? 'Unknown User' : profile.name;
+      _userEmail = profile.email.trim().isEmpty ? (user.email ?? 'user@email.com') : profile.email;
+      _userBio = profile.bio;
+      _userLocation = (profile.clientData?['location'] as String?) ?? '';
+      _userSkills = ((profile.professionalData?['skills'] as List?)
+                  ?.map((e) => e.toString())
+                  .toList() ??
+              <String>[]) +
+          ((profile.clientData?['skills'] as List?)
+                  ?.map((e) => e.toString())
+                  .toList() ??
+              <String>[]);
       _isProfileLoading = false;
     });
   }
@@ -548,10 +558,14 @@ class _ProfileScreenState extends State<_ProfileScreen> {
         .toList();
 
     await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
-      'displayName': nameController.text.trim(),
+      'uid': user.uid,
+      'name': nameController.text.trim().isEmpty ? 'Unknown User' : nameController.text.trim(),
       'email': emailController.text.trim(),
       'bio': bioController.text.trim(),
-      'location': locationController.text.trim(),
+      'clientData': {
+        'location': locationController.text.trim(),
+        'skills': skills,
+      },
       'skills': skills,
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
